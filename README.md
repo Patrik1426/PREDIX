@@ -70,7 +70,7 @@ pnpm build && pnpm start
 
 ## Documentación
 
-- **[docs/DOCUMENTO_CONSOLIDADO.md](./docs/DOCUMENTO_CONSOLIDADO.md)** — 📘 Documento maestro: PRD · TRD · UI/UX · Flujos · Backend · Roadmap
+- **[docs/DOCUMENTO_CONSOLIDADO.md](./docs/DOCUMENTO_CONSOLIDADO.md)** —  Documento maestro: PRD · TRD · UI/UX · Flujos · Backend · Roadmap
 - **[DEPLOYMENT_GUIDE.md](./DEPLOYMENT_GUIDE.md)** — Guía completa de implementación independiente
 - **[DATABASE_SCHEMA.md](./DATABASE_SCHEMA.md)** — Esquema detallado de base de datos
 - **[API_REFERENCE.md](./API_REFERENCE.md)** — Referencia completa de APIs

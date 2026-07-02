@@ -39,9 +39,8 @@ COPY patches/ ./patches/
 # Instalar solo dependencias de producción
 RUN pnpm install --frozen-lockfile --prod
 
-# Copiar artefactos compilados
+# Copiar artefactos compilados (dist/ incluye dist/public, generado por vite build)
 COPY --from=builder /app/dist ./dist
-COPY --from=builder /app/client/dist ./client/dist
 
 # Copiar migraciones de BD
 COPY drizzle/ ./drizzle/

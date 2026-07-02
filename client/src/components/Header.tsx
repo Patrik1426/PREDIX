@@ -12,8 +12,6 @@ import NotificationPanel from "./NotificationPanel";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { useDemoSession, DEMO_CREDENTIALS } from "@/contexts/DemoSessionContext";
 
-const LOGO_URL = "https://d2xsxph8kpxj0f.cloudfront.net/310519663448876651/Rvkj9PasLyCP8Bzckk33PM/logo-shield-NUsKFMUgQ3vx3XvesSJvWw.png";
-
 // Tokens sobrio-institucional (alineados al NotificationPanel).
 // Cian = solo acento de marca puntual; el color lo carga la severidad/estado.
 const HX = {
@@ -226,11 +224,10 @@ export default function Header() {
             }}
           />
           <div className="relative">
-            <img
-              src={LOGO_URL}
-              alt="Escudo Seguridad EdoMex"
-              className="w-9 h-9 object-contain"
-              style={{ filter: "drop-shadow(0 1px 3px rgba(0,0,0,0.5))" }}
+            <Shield
+              className="w-9 h-9"
+              style={{ color: HX.brand, filter: "drop-shadow(0 1px 3px rgba(0,0,0,0.5))" }}
+              aria-label="Escudo Seguridad EdoMex"
             />
           </div>
           <div className="min-w-0">

@@ -8,8 +8,6 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { CHATBOT_RESPONSES } from "@/data/securityData";
 import { Send, Mic, MicOff, Bot, User, Trash2, Volume2, VolumeX, Brain, Zap, Info, X } from "lucide-react";
 
-const LOGO_URL = "https://d2xsxph8kpxj0f.cloudfront.net/310519663448876651/Rvkj9PasLyCP8Bzckk33PM/logo-shield-NUsKFMUgQ3vx3XvesSJvWw.png";
-
 interface Message { id: string; role: "user" | "bot"; content: string; timestamp: Date; }
 
 const QUICK_QUERIES = [
@@ -101,7 +99,7 @@ export default function ChatbotTab() {
       {/* Toolbar */}
       <div className="px-card flex items-center gap-2" style={{ padding: "var(--px-2) var(--px-4)", flexShrink: 0 }}>
         <div className="relative shrink-0">
-          <img src={LOGO_URL} alt="ATENEA" className="w-7 h-7 object-contain" style={{ filter: "drop-shadow(0 0 4px color-mix(in srgb, var(--px-brand) 40%, transparent))" }} />
+          <Bot className="w-7 h-7" style={{ color: "var(--px-brand)", filter: "drop-shadow(0 0 4px color-mix(in srgb, var(--px-brand) 40%, transparent))" }} aria-label="ATENEA" />
           <div className="absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full" style={{ background: "var(--px-ok)", border: "1.5px solid var(--px-surface)" }} />
         </div>
         <div>
@@ -218,7 +216,7 @@ export default function ChatbotTab() {
             <div className="relative md:static ml-auto w-80 md:w-full h-full px-card flex flex-col overflow-y-auto scrollbar-tactical px-dialog-enter" style={{ background: "var(--px-surface)" }}>
               <div className="flex items-center justify-between" style={{ padding: "var(--px-3) var(--px-4)", borderBottom: "1px solid var(--px-hairline)", flexShrink: 0 }}>
                 <div className="flex items-center gap-2">
-                  <img src={LOGO_URL} alt="" className="w-8 h-8 object-contain" />
+                  <Bot className="w-8 h-8" style={{ color: "var(--px-brand)" }} />
                   <div>
                     <div style={{ fontFamily: "var(--px-display)", fontSize: "var(--px-text-md)", fontWeight: 700, color: "var(--px-text)" }}>ATENEA</div>
                     <div style={{ fontFamily: "var(--px-mono)", fontSize: "var(--px-text-xs)", color: "var(--px-brand)" }}>ASISTENTE TÁCTICO v1.0</div>

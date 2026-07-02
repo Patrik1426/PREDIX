@@ -8,6 +8,9 @@ FROM node:22-alpine AS builder
 
 WORKDIR /app
 
+# Herramientas de compilacion para dependencias nativas (ej. bcrypt)
+RUN apk add --no-cache python3 make g++
+
 # Habilitar pnpm
 RUN corepack enable && corepack prepare pnpm@10.4.1 --activate
 
@@ -15,8 +18,9 @@ RUN corepack enable && corepack prepare pnpm@10.4.1 --activate
 COPY package.json pnpm-lock.yaml ./
 COPY patches/ ./patches/
 
-# Instalar dependencias
-RUN pnpm install --frozen-lockfile
+# Instalar dependencias (--ignore-scripts evita bloqueos por confirmacion
+# interactiva de pnpm; se recompila el binding nativo explicitamente despues)
+RUN pnpm install --frozen-lockfile --ignore-scripts && pnpm rebuild bcrypt
 
 # Copiar código fuente
 COPY . .
@@ -29,6 +33,9 @@ FROM node:22-alpine AS production
 
 WORKDIR /app
 
+# Herramientas de compilacion para dependencias nativas (ej. bcrypt)
+RUN apk add --no-cache python3 make g++
+
 # Habilitar pnpm
 RUN corepack enable && corepack prepare pnpm@10.4.1 --activate
 
@@ -37,7 +44,7 @@ COPY package.json pnpm-lock.yaml ./
 COPY patches/ ./patches/
 
 # Instalar solo dependencias de producción
-RUN pnpm install --frozen-lockfile --prod
+RUN pnpm install --frozen-lockfile --prod --ignore-scripts && pnpm rebuild bcrypt
 
 # Copiar artefactos compilados (dist/ incluye dist/public, generado por vite build)
 COPY --from=builder /app/dist ./dist

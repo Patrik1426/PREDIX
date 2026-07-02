@@ -1,0 +1,56 @@
+# ============================================================
+# PREDIX — Docker Compose para Despliegue Completo
+# Sistema Estatal de Inteligencia para Seguridad Pública
+# ============================================================
+# Uso: docker-compose up -d
+
+version: "3.9"
+
+services:
+  # Base de datos MySQL
+  db:
+    image: mysql:8.0
+    container_name: predix-db
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-predix_root_2026}
+      MYSQL_DATABASE: predix_db
+      MYSQL_USER: predix_user
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-predix_secure_2026}
+    ports:
+      - "3306:3306"
+    volumes:
+      - predix_mysql_data:/var/lib/mysql
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Aplicación PREDIX
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: predix-app
+    restart: unless-stopped
+    ports:
+      - "${PORT:-3000}:3000"
+    environment:
+      DATABASE_URL: mysql://predix_user:${MYSQL_PASSWORD:-predix_secure_2026}@db:3306/predix_db
+      JWT_SECRET: ${JWT_SECRET}
+      VAULT_MASTER_KEY: ${VAULT_MASTER_KEY}
+      VITE_APP_ID: ${VITE_APP_ID}
+      OAUTH_SERVER_URL: ${OAUTH_SERVER_URL}
+      VITE_OAUTH_PORTAL_URL: ${VITE_OAUTH_PORTAL_URL}
+      OWNER_OPEN_ID: ${OWNER_OPEN_ID}
+      OWNER_NAME: ${OWNER_NAME}
+      NODE_ENV: production
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  predix_mysql_data:
+    driver: local

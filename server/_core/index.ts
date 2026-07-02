@@ -36,6 +36,12 @@ async function startServer() {
   const app = express();
   const server = createServer(app);
 
+  // Railway (y la mayoría de PaaS) corren detrás de un proxy inverso que
+  // agrega X-Forwarded-For; sin esto, express-rate-limit lo rechaza.
+  if (process.env.NODE_ENV === "production") {
+    app.set("trust proxy", 1);
+  }
+
   // Security headers
   app.use(helmet({
     contentSecurityPolicy: process.env.NODE_ENV === "production" ? undefined : false,

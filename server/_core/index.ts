@@ -44,7 +44,16 @@ async function startServer() {
 
   // Security headers
   app.use(helmet({
-    contentSecurityPolicy: process.env.NODE_ENV === "production" ? undefined : false,
+    contentSecurityPolicy: process.env.NODE_ENV === "production"
+      ? {
+          directives: {
+            ...helmet.contentSecurityPolicy.getDefaultDirectives(),
+            // Tiles del mapa táctico (TacticalMap.tsx) — CARTO dark basemap sin API key.
+            imgSrc: ["'self'", "data:", "https://*.basemaps.cartocdn.com"],
+            connectSrc: ["'self'", "https://*.basemaps.cartocdn.com"],
+          },
+        }
+      : false,
     crossOriginEmbedderPolicy: false,
   }));
 

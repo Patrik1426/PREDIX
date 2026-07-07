@@ -18,6 +18,7 @@ export interface TacticalMapLayers {
   municipios?: boolean;
   alertas?: boolean;
   policia?: boolean;
+  limites?: boolean;
   /** Círculos de cobertura por municipio (vista Zonas). */
   zonaCircles?: boolean;
 }
@@ -77,6 +78,7 @@ export default function TacticalMap({
     municipios: L.layerGroup(),
     alertas: L.layerGroup(),
     policia: L.layerGroup(),
+    limites: L.layerGroup(),
     zonaCircles: L.layerGroup(),
   });
   // Callbacks en ref para no recrear el mapa cuando cambian.
@@ -194,6 +196,7 @@ export default function TacticalMap({
       municipios: !!layers.municipios,
       alertas: !!layers.alertas,
       policia: !!layers.policia,
+      limites: !!layers.limites,
       zonaCircles: !!layers.zonaCircles,
     };
     (Object.keys(want) as (keyof TacticalMapLayers)[]).forEach((k) => {
@@ -201,7 +204,31 @@ export default function TacticalMap({
       if (want[k] && !has) g[k].addTo(map);
       else if (!want[k] && has) map.removeLayer(g[k]);
     });
-  }, [layers.heatmap, layers.municipios, layers.alertas, layers.policia, layers.zonaCircles]);
+  }, [layers.heatmap, layers.municipios, layers.alertas, layers.policia, layers.limites, layers.zonaCircles]);
+
+  // ── Carga GeoJSON de límites municipales ──
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    const g = groups.current;
+    g.limites.clearLayers();
+
+    // Genera polígonos aproximados alrededor de cada municipio.
+    // TODO: reemplazar con GeoJSON oficial INEGI cuando esté disponible.
+    municipios.forEach((mun) => {
+      const offset = 0.08; // aprox 8km
+      const bounds = [
+        [mun.lat - offset, mun.lng - offset],
+        [mun.lat + offset, mun.lng - offset],
+        [mun.lat + offset, mun.lng + offset],
+        [mun.lat - offset, mun.lng + offset],
+        [mun.lat - offset, mun.lng - offset],
+      ];
+      L.polyline(bounds as L.LatLngExpression[], {
+        color: "rgba(100, 200, 255, 0.3)", weight: 1, opacity: 0.4, dashArray: "3,3",
+      }).addTo(g.limites);
+    });
+  }, [municipios]);
 
   // ── (Re)construye capas de incidencia desde datos reales (`municipios`) ──
   useEffect(() => {

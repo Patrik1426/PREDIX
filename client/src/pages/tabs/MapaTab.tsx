@@ -18,7 +18,7 @@ import {
   FlaskConical, Search, AlertTriangle, Users, ChevronUp, X,
 } from "lucide-react";
 
-type MapLayer = "heatmap" | "markers" | "alertas" | "policia";
+type MapLayer = "heatmap" | "markers" | "alertas" | "limites" | "policia";
 
 const EDOMEX_CENTER = { lat: 19.4326, lng: -99.1332 };
 
@@ -54,7 +54,7 @@ function Kpi({ label, value, unit, icon, accent }: {
 }
 
 export default function MapaTab() {
-  const [activeLayers, setActiveLayers] = useState<Set<MapLayer>>(new Set<MapLayer>(["heatmap", "markers", "policia"]));
+  const [activeLayers, setActiveLayers] = useState<Set<MapLayer>>(new Set<MapLayer>(["heatmap", "markers", "limites", "policia"]));
   const [selectedMunicipio, setSelectedMunicipio] = useState<string | null>(null);
   const [selectedElement, setSelectedElement] = useState<PoliceElement | null>(null);
   const [sidePanel, setSidePanel] = useState<"municipios" | "elementos">("municipios");
@@ -116,6 +116,7 @@ export default function MapaTab() {
   const LAYER_DEFS: { id: MapLayer; label: string; icon: React.ReactNode }[] = [
     { id: "heatmap", label: "Mapa de Calor", icon: <Thermometer size={11} /> },
     { id: "markers", label: "Municipios", icon: <MapPin size={11} /> },
+    { id: "limites", label: "Límites Municipales", icon: <Navigation size={11} /> },
     { id: "alertas", label: "Alertas Activas", icon: <Filter size={11} /> },
     { id: "policia", label: `Elementos (${totalElementos})`, icon: <Shield size={11} /> },
   ];
@@ -330,6 +331,7 @@ export default function MapaTab() {
                 heatmap: activeLayers.has("heatmap"),
                 municipios: activeLayers.has("markers"),
                 alertas: activeLayers.has("alertas"),
+                limites: activeLayers.has("limites"),
                 policia: activeLayers.has("policia"),
               }}
               focus={focus}

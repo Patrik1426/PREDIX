@@ -216,7 +216,7 @@ export default function TacticalMap({
     // Genera polígonos aproximados alrededor de cada municipio.
     // TODO: reemplazar con GeoJSON oficial INEGI cuando esté disponible.
     municipios.forEach((mun) => {
-      const offset = 0.08; // aprox 8km
+      const offset = 0.15; // aprox 15km (increased for better visibility on zoom)
       const bounds = [
         [mun.lat - offset, mun.lng - offset],
         [mun.lat + offset, mun.lng - offset],
@@ -225,7 +225,7 @@ export default function TacticalMap({
         [mun.lat - offset, mun.lng - offset],
       ];
       L.polyline(bounds as L.LatLngExpression[], {
-        color: "#00D4FF", weight: 2, opacity: 0.7, dashArray: "5,3",
+        color: "#00D4FF", weight: 3, opacity: 0.8, dashArray: "5,3",
       }).addTo(g.limites);
     });
   }, [municipios]);
@@ -246,10 +246,15 @@ export default function TacticalMap({
     const heatPoints: [number, number, number][] = municipios.map(
       (m) => [m.lat, m.lng, Math.min(1, m.delitos / 3000)] as [number, number, number],
     );
-    L.heatLayer(heatPoints, {
-      radius: 38, blur: 28, max: 1, minOpacity: 0.25,
-      gradient: { 0.2: "#0064FF", 0.4: "#00D4FF", 0.6: "#FFB800", 0.8: "#FF6400", 1.0: "#FF3B3B" },
-    }).addTo(g.heatmap);
+    try {
+      const heat = (L as any).heatLayer(heatPoints, {
+        radius: 38, blur: 28, max: 1, minOpacity: 0.25,
+        gradient: { 0.2: "#0064FF", 0.4: "#00D4FF", 0.6: "#FFB800", 0.8: "#FF6400", 1.0: "#FF3B3B" },
+      });
+      if (heat) heat.addTo(g.heatmap);
+    } catch (e) {
+      console.warn("Heatmap renderering failed:", e);
+    }
 
     // Marcadores por municipio.
     municipios.forEach((mun) => {

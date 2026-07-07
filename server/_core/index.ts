@@ -49,8 +49,8 @@ async function startServer() {
           directives: {
             ...helmet.contentSecurityPolicy.getDefaultDirectives(),
             // Tiles del mapa táctico (TacticalMap.tsx) — CARTO dark basemap sin API key.
-            imgSrc: ["'self'", "data:", "https://*.basemaps.cartocdn.com"],
-            connectSrc: ["'self'", "https://*.basemaps.cartocdn.com"],
+            "img-src": ["'self'", "data:", "https://*.basemaps.cartocdn.com"],
+            "connect-src": ["'self'", "https://*.basemaps.cartocdn.com"],
           },
         }
       : false,

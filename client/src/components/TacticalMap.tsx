@@ -225,7 +225,7 @@ export default function TacticalMap({
         [mun.lat - offset, mun.lng - offset],
       ];
       L.polyline(bounds as L.LatLngExpression[], {
-        color: "rgba(100, 200, 255, 0.3)", weight: 1, opacity: 0.4, dashArray: "3,3",
+        color: "#00D4FF", weight: 2, opacity: 0.7, dashArray: "5,3",
       }).addTo(g.limites);
     });
   }, [municipios]);

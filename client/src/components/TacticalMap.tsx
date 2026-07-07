@@ -216,7 +216,7 @@ export default function TacticalMap({
     // Genera polígonos aproximados alrededor de cada municipio.
     // TODO: reemplazar con GeoJSON oficial INEGI cuando esté disponible.
     municipios.forEach((mun) => {
-      const offset = 0.15; // aprox 15km (increased for better visibility on zoom)
+      const offset = 0.05; // aprox 5km — aproximación visual, no límite oficial
       const bounds = [
         [mun.lat - offset, mun.lng - offset],
         [mun.lat + offset, mun.lng - offset],
@@ -225,7 +225,7 @@ export default function TacticalMap({
         [mun.lat - offset, mun.lng - offset],
       ];
       L.polyline(bounds as L.LatLngExpression[], {
-        color: "#00D4FF", weight: 3, opacity: 0.8, dashArray: "5,3",
+        color: "#00D4FF", weight: 1.5, opacity: 0.35, dashArray: "4,4",
       }).addTo(g.limites);
     });
   }, [municipios]);

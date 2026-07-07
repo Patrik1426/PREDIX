@@ -54,7 +54,7 @@ function Kpi({ label, value, unit, icon, accent }: {
 }
 
 export default function MapaTab() {
-  const [activeLayers, setActiveLayers] = useState<Set<MapLayer>>(new Set<MapLayer>(["heatmap", "markers", "limites", "policia"]));
+  const [activeLayers, setActiveLayers] = useState<Set<MapLayer>>(new Set<MapLayer>(["heatmap", "markers", "policia"]));
   const [selectedMunicipio, setSelectedMunicipio] = useState<string | null>(null);
   const [selectedElement, setSelectedElement] = useState<PoliceElement | null>(null);
   const [sidePanel, setSidePanel] = useState<"municipios" | "elementos">("municipios");

@@ -11,11 +11,13 @@ export const users = mysqlTable("users", {
    * Use this for relations between tables.
    */
   id: int("id").autoincrement().primaryKey(),
-  /** Manus OAuth identifier (openId) returned from the OAuth callback. Unique per user. */
+  /** Identificador único interno del usuario (no depende de ningún proveedor externo). */
   openId: varchar("openId", { length: 64 }).notNull().unique(),
   name: text("name"),
   email: varchar("email", { length: 320 }),
   loginMethod: varchar("loginMethod", { length: 64 }),
+  /** Hash bcrypt de la contraseña. Null para filas creadas antes de este cambio hasta que se les asigne una (ver scripts/seed-passwords.ts). */
+  passwordHash: varchar("password_hash", { length: 255 }),
   role: mysqlEnum("role", ["user", "admin"]).default("user").notNull(),
   // Institutional roles for security system
   institutionalRole: mysqlEnum("institutional_role", ["operador", "supervisor", "analista", "admin", "consulta", "policia", "comandante"]).notNull().default("operador"),
@@ -272,3 +274,32 @@ export const alertas = mysqlTable("alertas", {
 
 export type Alerta = typeof alertas.$inferSelect;
 export type InsertAlerta = typeof alertas.$inferInsert;
+
+// ── Incidentes — registro y seguimiento ──
+// folio (ej. "INC-2026-0001") es el identificador visible/estable, usado también
+// por incident_attachments.incidentId (varchar) — mantener el mismo formato.
+export const incidentes = mysqlTable("incidentes", {
+  id: int("id").autoincrement().primaryKey(),
+  folio: varchar("folio", { length: 20 }).notNull().unique(),
+  tipo: varchar("tipo", { length: 255 }).notNull(),
+  municipio: varchar("municipio", { length: 128 }).notNull(),
+  colonia: varchar("colonia", { length: 150 }),
+  narrativa: text("narrativa").notNull(),
+  estado: mysqlEnum("estado", ["en_proceso", "cerrado", "investigacion"]).notNull().default("en_proceso"),
+  prioridad: mysqlEnum("prioridad", ["baja", "media", "alta", "critica"]).notNull().default("media"),
+  lat: varchar("lat", { length: 20 }),
+  lng: varchar("lng", { length: 20 }),
+  personal: varchar("personal", { length: 255 }),
+  atendido: int("atendido").notNull().default(0),
+  createdBy: varchar("created_by", { length: 128 }),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow(),
+}, (t) => [
+  index("idx_incidente_folio").on(t.folio),
+  index("idx_incidente_estado").on(t.estado),
+  index("idx_incidente_muni").on(t.municipio),
+  index("idx_incidente_created").on(t.createdAt),
+]);
+
+export type Incidente = typeof incidentes.$inferSelect;
+export type InsertIncidente = typeof incidentes.$inferInsert;

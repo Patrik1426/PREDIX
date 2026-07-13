@@ -64,6 +64,20 @@
       "when": 1782782258542,
       "tag": "0008_broad_thena",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "5",
+      "when": 1783832813726,
+      "tag": "0009_first_guardian",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "5",
+      "when": 1783920915588,
+      "tag": "0010_flimsy_vargas",
+      "breakpoints": true
     }
   ]
 }

@@ -11,96 +11,20 @@ import { eq, and } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { COOKIE_NAME } from "../../shared/const";
 import { getSessionCookieOptions } from "../_core/auth/cookies";
-import { ENV } from "../_core/infra/env";
+import { toPublicUser } from "../_core/auth/sanitizeUser";
+import { hashPassword, verifyPassword } from "../_core/auth/password";
+import * as db from "../config/db";
+import { sdk } from "../_core/sdk";
 
-// Define module names
-export const MODULES = {
-  MAPA_GEOESPACIAL: "mapa_geoespacial",
-  ALERTAS: "alertas",
-  INCIDENTES: "incidentes",
-  PREDICCIONES: "predicciones",
-  TABLERO: "tablero",
-  ZONAS_DELICTIVAS: "zonas_delictivas",
-  CHATBOT: "chatbot",
-  ADMIN: "admin",
-} as const;
+// Hash dummy precomputado una sola vez — usado para igualar el costo de bcrypt
+// cuando el usuario no existe, cerrando el timing side-channel de institutionalLogin.
+const DUMMY_HASH = hashPassword("dummy-password-para-timing-constante");
 
-// Define role permissions
-export const DEFAULT_PERMISSIONS = {
-  operador: {
-    [MODULES.MAPA_GEOESPACIAL]: { canView: 1, canEdit: 0, canDelete: 0, canExport: 0 },
-    [MODULES.ALERTAS]: { canView: 1, canEdit: 0, canDelete: 0, canExport: 0 },
-    [MODULES.INCIDENTES]: { canView: 1, canEdit: 1, canDelete: 0, canExport: 0 },
-    [MODULES.PREDICCIONES]: { canView: 0, canEdit: 0, canDelete: 0, canExport: 0 },
-    [MODULES.TABLERO]: { canView: 0, canEdit: 0, canDelete: 0, canExport: 0 },
-    [MODULES.ZONAS_DELICTIVAS]: { canView: 1, canEdit: 0, canDelete: 0, canExport: 0 },
-    [MODULES.CHATBOT]: { canView: 1, canEdit: 0, canDelete: 0, canExport: 0 },
-    [MODULES.ADMIN]: { canView: 0, canEdit: 0, canDelete: 0, canExport: 0 },
-  },
-  supervisor: {
-    [MODULES.MAPA_GEOESPACIAL]: { canView: 1, canEdit: 1, canDelete: 0, canExport: 1 },
-    [MODULES.ALERTAS]: { canView: 1, canEdit: 1, canDelete: 0, canExport: 1 },
-    [MODULES.INCIDENTES]: { canView: 1, canEdit: 1, canDelete: 0, canExport: 1 },
-    [MODULES.PREDICCIONES]: { canView: 1, canEdit: 0, canDelete: 0, canExport: 1 },
-    [MODULES.TABLERO]: { canView: 1, canEdit: 1, canDelete: 0, canExport: 1 },
-    [MODULES.ZONAS_DELICTIVAS]: { canView: 1, canEdit: 1, canDelete: 0, canExport: 1 },
-    [MODULES.CHATBOT]: { canView: 1, canEdit: 0, canDelete: 0, canExport: 0 },
-    [MODULES.ADMIN]: { canView: 0, canEdit: 0, canDelete: 0, canExport: 0 },
-  },
-  analista: {
-    [MODULES.MAPA_GEOESPACIAL]: { canView: 1, canEdit: 0, canDelete: 0, canExport: 1 },
-    [MODULES.ALERTAS]: { canView: 1, canEdit: 0, canDelete: 0, canExport: 1 },
-    [MODULES.INCIDENTES]: { canView: 1, canEdit: 0, canDelete: 0, canExport: 1 },
-    [MODULES.PREDICCIONES]: { canView: 1, canEdit: 0, canDelete: 0, canExport: 1 },
-    [MODULES.TABLERO]: { canView: 1, canEdit: 0, canDelete: 0, canExport: 1 },
-    [MODULES.ZONAS_DELICTIVAS]: { canView: 1, canEdit: 0, canDelete: 0, canExport: 1 },
-    [MODULES.CHATBOT]: { canView: 1, canEdit: 0, canDelete: 0, canExport: 0 },
-    [MODULES.ADMIN]: { canView: 0, canEdit: 0, canDelete: 0, canExport: 0 },
-  },
-  admin: {
-    [MODULES.MAPA_GEOESPACIAL]: { canView: 1, canEdit: 1, canDelete: 1, canExport: 1 },
-    [MODULES.ALERTAS]: { canView: 1, canEdit: 1, canDelete: 1, canExport: 1 },
-    [MODULES.INCIDENTES]: { canView: 1, canEdit: 1, canDelete: 1, canExport: 1 },
-    [MODULES.PREDICCIONES]: { canView: 1, canEdit: 1, canDelete: 1, canExport: 1 },
-    [MODULES.TABLERO]: { canView: 1, canEdit: 1, canDelete: 1, canExport: 1 },
-    [MODULES.ZONAS_DELICTIVAS]: { canView: 1, canEdit: 1, canDelete: 1, canExport: 1 },
-    [MODULES.CHATBOT]: { canView: 1, canEdit: 1, canDelete: 1, canExport: 1 },
-    [MODULES.ADMIN]: { canView: 1, canEdit: 1, canDelete: 1, canExport: 1 },
-  },
-  consulta: {
-    [MODULES.MAPA_GEOESPACIAL]: { canView: 0, canEdit: 0, canDelete: 0, canExport: 0 },
-    [MODULES.ALERTAS]: { canView: 0, canEdit: 0, canDelete: 0, canExport: 0 },
-    [MODULES.INCIDENTES]: { canView: 0, canEdit: 0, canDelete: 0, canExport: 0 },
-    [MODULES.PREDICCIONES]: { canView: 0, canEdit: 0, canDelete: 0, canExport: 0 },
-    [MODULES.TABLERO]: { canView: 1, canEdit: 0, canDelete: 0, canExport: 0 },
-    [MODULES.ZONAS_DELICTIVAS]: { canView: 0, canEdit: 0, canDelete: 0, canExport: 0 },
-    [MODULES.CHATBOT]: { canView: 0, canEdit: 0, canDelete: 0, canExport: 0 },
-    [MODULES.ADMIN]: { canView: 0, canEdit: 0, canDelete: 0, canExport: 0 },
-  },
-  policia: {
-    [MODULES.MAPA_GEOESPACIAL]: { canView: 1, canEdit: 0, canDelete: 0, canExport: 0 },
-    [MODULES.ALERTAS]: { canView: 1, canEdit: 1, canDelete: 0, canExport: 0 },
-    [MODULES.INCIDENTES]: { canView: 1, canEdit: 1, canDelete: 0, canExport: 0 },
-    [MODULES.PREDICCIONES]: { canView: 0, canEdit: 0, canDelete: 0, canExport: 0 },
-    [MODULES.TABLERO]: { canView: 0, canEdit: 0, canDelete: 0, canExport: 0 },
-    [MODULES.ZONAS_DELICTIVAS]: { canView: 0, canEdit: 0, canDelete: 0, canExport: 0 },
-    [MODULES.CHATBOT]: { canView: 0, canEdit: 0, canDelete: 0, canExport: 0 },
-    [MODULES.ADMIN]: { canView: 0, canEdit: 0, canDelete: 0, canExport: 0 },
-  },
-  comandante: {
-    [MODULES.MAPA_GEOESPACIAL]: { canView: 1, canEdit: 1, canDelete: 0, canExport: 1 },
-    [MODULES.ALERTAS]: { canView: 1, canEdit: 1, canDelete: 0, canExport: 1 },
-    [MODULES.INCIDENTES]: { canView: 1, canEdit: 1, canDelete: 0, canExport: 1 },
-    [MODULES.PREDICCIONES]: { canView: 1, canEdit: 0, canDelete: 0, canExport: 1 },
-    [MODULES.TABLERO]: { canView: 1, canEdit: 0, canDelete: 0, canExport: 1 },
-    [MODULES.ZONAS_DELICTIVAS]: { canView: 1, canEdit: 0, canDelete: 0, canExport: 1 },
-    [MODULES.CHATBOT]: { canView: 1, canEdit: 0, canDelete: 0, canExport: 0 },
-    [MODULES.ADMIN]: { canView: 0, canEdit: 0, canDelete: 0, canExport: 0 },
-  },
-} as const;
+import { MODULES, DEFAULT_PERMISSIONS } from "../_core/infra/permissions";
+export { MODULES, DEFAULT_PERMISSIONS };
 
 export const authRouter = router({
-  me: publicProcedure.query(async ({ ctx }) => ctx.user ?? null),
+  me: publicProcedure.query(async ({ ctx }) => (ctx.user ? toPublicUser(ctx.user) : null)),
 
   logout: publicProcedure.mutation(async ({ ctx }) => {
     ctx.res.clearCookie(
@@ -123,33 +47,39 @@ export const authRouter = router({
         employeeId: z.string().min(1),
       })
     )
-    .mutation(async ({ input }) => {
-      const db = await getDb();
-      if (!db) {
+    .mutation(async ({ ctx, input }) => {
+      const user = await db.getUserByEmail(input.email);
+
+      // Comparar siempre contra un hash (real o dummy) para que el costo de
+      // bcrypt sea constante — evita que el tiempo de respuesta filtre si el
+      // email existe (enumeración de cuentas vía timing side-channel).
+      const passwordOk = await verifyPassword(input.password, user?.passwordHash ?? (await DUMMY_HASH));
+
+      if (
+        !user ||
+        !user.passwordHash ||
+        user.employeeId !== input.employeeId ||
+        user.status !== "active" ||
+        !passwordOk
+      ) {
         throw new TRPCError({
-          code: "INTERNAL_SERVER_ERROR",
-          message: "Database not available",
+          code: "UNAUTHORIZED",
+          message: "Credenciales inválidas",
         });
       }
 
-      if (ENV.enableDemoLogin) {
-        if (
-          input.email === "demo@edomex.gob.mx" &&
-          input.password === "Demo@2026" &&
-          input.employeeId === "EMP-2026-001"
-        ) {
-          return {
-            success: true,
-            message: "Sesión iniciada correctamente (demo)",
-            role: "operador",
-          };
-        }
-      }
+      await db.upsertUser({ openId: user.openId, lastSignedIn: new Date() });
 
-      throw new TRPCError({
-        code: "UNAUTHORIZED",
-        message: "Credenciales inválidas",
+      const sessionToken = await sdk.createSessionToken(user.openId, {
+        name: user.name || "",
       });
+      const cookieOptions = getSessionCookieOptions(ctx.req);
+      ctx.res.cookie(COOKIE_NAME, sessionToken, cookieOptions);
+
+      return {
+        success: true,
+        role: user.institutionalRole,
+      };
     }),
 
   // Get user permissions for a module

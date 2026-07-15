@@ -37,10 +37,20 @@ describe("admin.auditLog", () => {
     }
   });
 
-  it("responde con origen 'sin_bd' y data vacía en modo degradado", async () => {
+  it("responde con origen 'sin_bd' y data vacía en modo degradado (rol admin)", async () => {
     const caller = appRouter.createCaller(createContext(AUTH_USER));
     const result = await caller.admin.auditLog();
     expect(result.origen).toBe("sin_bd");
     expect(result.data).toEqual([]);
+  });
+
+  it("rechaza con FORBIDDEN a un rol sin permiso de admin (ej. consulta)", async () => {
+    const caller = appRouter.createCaller(createContext({ ...AUTH_USER, institutionalRole: "consulta" }));
+    try {
+      await caller.admin.auditLog();
+      throw new Error("esperaba que rechazara");
+    } catch (e) {
+      expect((e as TRPCError).code).toBe("FORBIDDEN");
+    }
   });
 });

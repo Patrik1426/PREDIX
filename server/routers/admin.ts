@@ -1,11 +1,12 @@
-import { protectedProcedure, router } from "../_core/infra/trpc";
+import { requirePermission, router } from "../_core/infra/trpc";
 import { getDb } from "../config/db";
 import { auditLog } from "../../drizzle/schema";
+import { MODULES } from "../_core/infra/permissions";
 import { desc } from "drizzle-orm";
 import { logger } from "../_core/logger";
 
 export const adminRouter = router({
-  auditLog: protectedProcedure.query(async () => {
+  auditLog: requirePermission(MODULES.ADMIN, "canView").query(async () => {
     const db = await getDb();
     if (!db) return { data: [], origen: "sin_bd" as const };
     try {

@@ -241,7 +241,26 @@ export default function AdminTab() {
     () => rolesBase.map(r => ({ ...r, userCount: users.filter(u => u.role === r.name).length })),
     [rolesBase, users]
   );
-  const [auditLogs, setAuditLogs] = useState<AuditLog[]>(DEMO_AUDIT_LOGS);
+
+  // BD: bitácora de auditoría real con fallback a datos demo
+  const { data: dbAuditLog } = trpc.admin.auditLog.useQuery();
+  const auditEsReal = dbAuditLog?.origen === "real" && (dbAuditLog?.data?.length ?? 0) > 0;
+  const auditLogs: AuditLog[] = useMemo(() => {
+    if (auditEsReal && dbAuditLog) {
+      return dbAuditLog.data.map(row => ({
+        id: row.id,
+        timestamp: new Date(row.timestamp).toLocaleString("es-MX"),
+        user: `Usuario #${row.userId}`,
+        action: row.action,
+        module: row.module,
+        detail: row.details || "",
+        ip: row.ipAddress || "—",
+        status: "success" as const,
+      }));
+    }
+    return DEMO_AUDIT_LOGS;
+  }, [dbAuditLog, auditEsReal]);
+
   const [expandedRole, setExpandedRole] = useState<number | null>(null);
   const [auditFilter, setAuditFilter] = useState<string>("all");
 
@@ -291,11 +310,12 @@ export default function AdminTab() {
   }, [auditFilter, auditLogs]);
 
   /* ─── Add audit log ─── */
-  const addAuditLog = useCallback((action: string, module: string, detail: string, status: "success" | "failed" | "warning" = "success") => {
-    const now = new Date();
-    const ts = `${now.toLocaleDateString("es-MX")} ${now.toLocaleTimeString("es-MX")}`;
-    setAuditLogs(prev => [{ id: prev.length + 1, timestamp: ts, user: "Cmdte. Roberto Hernández", action, module, detail, ip: "10.0.1.45", status }, ...prev]);
-  }, []);
+  // El registro real ya lo escribe el servidor (logAudit en cada mutación) — aquí
+  // solo se invalida la query para refrescar la bitácora con la fila recién creada.
+  const utils = trpc.useUtils();
+  const addAuditLog = useCallback(() => {
+    utils.admin.auditLog.invalidate();
+  }, [utils]);
 
   /* ─── Create User ─── */
   const handleCreateUser = () => {
@@ -312,7 +332,7 @@ export default function AdminTab() {
       password: newUser.password,
     }, {
       onSuccess: d => okOrUsuario(d, () => {
-        addAuditLog("CREATE_USER", "Administración", `Nuevo usuario creado: ${newUser.name} (${newUser.role})`);
+        addAuditLog();
         toast.success(`Usuario "${newUser.name}" registrado exitosamente`);
       }),
     });
@@ -326,7 +346,7 @@ export default function AdminTab() {
     const newStatus = user.status === "active" ? "suspended" : "active";
     actualizarUsuarioMut.mutate({ id: user.id, status: newStatus }, {
       onSuccess: d => okOrUsuario(d, () => {
-        addAuditLog("MODIFY_USER", "Administración", `${newStatus === "suspended" ? "Suspensión" : "Activación"} de usuario: ${user.email}`);
+        addAuditLog();
         toast.success(`Usuario ${user.name} ${newStatus === "suspended" ? "suspendido" : "activado"}`);
       }),
     });
@@ -338,7 +358,7 @@ export default function AdminTab() {
     if (!esReal) { toast.info("Vista de demostración — inicia sesión para modificar usuarios."); setShowDeleteConfirm(false); setDeleteTarget(null); return; }
     eliminarUsuarioMut.mutate({ id: deleteTarget.id }, {
       onSuccess: d => okOrUsuario(d, () => {
-        addAuditLog("DELETE_USER", "Administración", `Usuario eliminado: ${deleteTarget.email}`);
+        addAuditLog();
         toast.success(`Usuario "${deleteTarget.name}" eliminado`);
       }),
     });
@@ -358,7 +378,7 @@ export default function AdminTab() {
       status: editingUser.status,
     }, {
       onSuccess: d => okOrUsuario(d, () => {
-        addAuditLog("MODIFY_USER", "Administración", `Usuario editado: ${editingUser.email}`);
+        addAuditLog();
         toast.success(`Usuario "${editingUser.name}" actualizado`);
       }),
     });
@@ -382,7 +402,7 @@ export default function AdminTab() {
       permissions: { ...role.permissions },
     };
     setRoles(prev => [...prev, newRole]);
-    addAuditLog("CREATE_ROLE", "Administración", `Rol duplicado: ${role.name} → ${newRole.name}`);
+    addAuditLog();
     toast.success(`Rol "${role.name}" duplicado como "${newRole.name}"`);
   };
 
@@ -390,7 +410,7 @@ export default function AdminTab() {
   const handleSavePermissions = () => {
     if (!editingRole) return;
     setRoles(prev => prev.map(r => r.id === editingRole.id ? editingRole : r));
-    addAuditLog("MODIFY_PERMISSIONS", "Administración", `Permisos actualizados para rol: ${editingRole.name}`);
+    addAuditLog();
     toast.success(`Permisos del rol "${editingRole.name}" actualizados`);
     setShowEditPermissionsDialog(false);
     setEditingRole(null);
@@ -415,8 +435,8 @@ export default function AdminTab() {
       <div className="px-card flex items-center gap-2 flex-wrap" style={{ padding: "var(--px-2) var(--px-4)", flexShrink: 0 }}>
         <Shield size={13} style={{ color: "var(--px-brand)" }} />
         <span style={{ fontFamily: "var(--px-display)", fontSize: "var(--px-text-sm)", fontWeight: 700, color: "var(--px-text)" }}>ADMINISTRACIÓN</span>
-        {/* Roles/Auditoría/Actividad son 100% mock local — el badge solo refleja "real" en Usuarios, la única sub-tab con datos de BD */}
-        <OriginBadge real={activeSubTab === "usuarios" ? esReal : false} />
+        {/* Roles/Actividad son 100% mock local — el badge refleja "real" en Usuarios y Auditoría, las sub-tabs con datos de BD */}
+        <OriginBadge real={activeSubTab === "usuarios" ? esReal : activeSubTab === "auditoria" ? auditEsReal : false} />
         <div className="hidden sm:flex items-center gap-3 ml-2">
           <span style={{ fontFamily: "var(--px-mono)", fontSize: "var(--px-text-xs)", color: "var(--px-ok)" }}><span style={{ fontWeight: 700 }}>{stats.activeUsers}</span> activos</span>
           <span style={{ fontFamily: "var(--px-mono)", fontSize: "var(--px-text-xs)", color: "var(--px-text-faint)" }}>{stats.todayActions} acciones hoy</span>

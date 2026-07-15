@@ -4,15 +4,41 @@
 // Mobile: card list → tap → detalle full-screen
 // ============================================================
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { INCIDENTES_RECIENTES, DATOS_MENSUALES } from "@/data/securityData";
-import { Filter, Clock, MapPin, FileText, TrendingUp, ChevronDown, ArrowLeft } from "lucide-react";
+import { Filter, Clock, MapPin, FileText, TrendingUp, ChevronDown, ArrowLeft, Plus, Trash2, CheckCircle, Search } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line } from "recharts";
 import { ExportIncidenciaDialog } from "@/components/ExportIncidenciaDialog";
 import { AdvancedIncidentFilter, type IncidentFilterState } from "@/components/AdvancedIncidentFilter";
 import { useIncidentSearch } from "@/hooks/useIncidentSearch";
 import IncidentDetailModal from "@/components/IncidentDetailModal";
 import { OriginBadge, EmptyState } from "@/components/dashboard";
+import { trpc } from "@/lib/trpc";
+import { TRPCClientError } from "@trpc/client";
+import { toast } from "sonner";
+
+const ESTADO_DB_TO_LABEL: Record<string, string> = { en_proceso: "En proceso", cerrado: "Cerrado", investigacion: "Investigación" };
+const ESTADO_LABEL_TO_DB: Record<string, "en_proceso" | "cerrado" | "investigacion"> = { "En proceso": "en_proceso", "Cerrado": "cerrado", "Investigación": "investigacion" };
+const PRIORIDAD_DB_TO_LABEL: Record<string, string> = { baja: "baja", media: "media", alta: "alta", critica: "crítica" };
+const PRIORIDAD_LABEL_TO_DB: Record<string, "baja" | "media" | "alta" | "critica"> = { baja: "baja", media: "media", alta: "alta", "crítica": "critica" };
+
+interface IncidenteUI {
+  id: string;
+  tipo: string;
+  municipio: string;
+  colonia: string;
+  hora: string;
+  fecha: string;
+  estado: string;
+  prioridad: string;
+  lat: number;
+  lng: number;
+  narrativa: string;
+  personal: string;
+  atendido: boolean;
+  /** Presente solo en filas reales de BD; ausente en datos mock — usar `!== undefined`, nunca truthy check (id real puede ser 0). */
+  _dbId?: number;
+}
 
 const priCfg = (p: string) => ({
   "crítica": { color: "var(--px-crit)", bg: "color-mix(in srgb, var(--px-crit) 10%, transparent)" },
@@ -41,23 +67,123 @@ const Tip = ({ active, payload, label }: any) => {
 
 export default function IncidentesTab() {
   const [chartView, setChartView] = useState<"bar" | "line">("bar");
-  const [sel, setSel] = useState<any>(INCIDENTES_RECIENTES[0]);
   const [showMobileDetail, setShowMobileDetail] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
   const [showModal, setShowModal] = useState(false);
+  const [showNewDialog, setShowNewDialog] = useState(false);
   const [filters, setFilters] = useState<IncidentFilterState>({ searchText: "", priority: [], status: [], municipios: [], crimeTypes: [] });
+  const [newIncidente, setNewIncidente] = useState({ tipo: "", municipio: "", colonia: "", narrativa: "", prioridad: "media" as string });
 
-  const { filtered, count } = useIncidentSearch(INCIDENTES_RECIENTES, filters);
+  const { data: municipiosData } = trpc.predicciones.obtenerMunicipios.useQuery();
+  const municipios125 = municipiosData?.data || [];
+
+  // BD query + fallback mock
+  const { data: dbData, refetch } = trpc.incidentes.listar.useQuery({});
+  const esReal = dbData?.origen === "real" && (dbData?.data?.length ?? 0) > 0;
+
+  const incidentes: IncidenteUI[] = useMemo(() => {
+    if (esReal && dbData) {
+      return dbData.data.map(inc => ({
+        id: inc.folio,
+        tipo: inc.tipo,
+        municipio: inc.municipio,
+        colonia: inc.colonia || "",
+        hora: new Date(inc.createdAt).toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" }),
+        fecha: new Date(inc.createdAt).toLocaleDateString("es-MX"),
+        estado: ESTADO_DB_TO_LABEL[inc.estado] || inc.estado,
+        prioridad: PRIORIDAD_DB_TO_LABEL[inc.prioridad] || inc.prioridad,
+        lat: parseFloat(inc.lat || "19.43"), lng: parseFloat(inc.lng || "-99.13"),
+        narrativa: inc.narrativa,
+        personal: inc.personal || "Sin asignar",
+        atendido: !!inc.atendido,
+        _dbId: inc.id,
+      }));
+    }
+    return INCIDENTES_RECIENTES;
+  }, [dbData, esReal]);
+
+  const [selId, setSelId] = useState<string>("");
+  const sel = incidentes.find(i => i.id === selId) || incidentes[0];
+
+  // Si el incidente seleccionado desaparece de la lista (refetch, swap mock↔real),
+  // no dejar un modal/detalle abierto mostrando en silencio un registro distinto.
+  useEffect(() => {
+    if (selId && !incidentes.some(i => i.id === selId)) {
+      setSelId("");
+      setShowModal(false);
+      setShowMobileDetail(false);
+    }
+  }, [incidentes, selId]);
+
+  const { filtered, count } = useIncidentSearch(incidentes, filters);
 
   const kpis = useMemo(() => ({
-    total: INCIDENTES_RECIENTES.length,
-    proceso: INCIDENTES_RECIENTES.filter(i => i.estado === "En proceso").length,
-    cerrados: INCIDENTES_RECIENTES.filter(i => i.estado === "Cerrado").length,
-    criticos: INCIDENTES_RECIENTES.filter(i => i.prioridad === "crítica").length,
-  }), []);
+    total: incidentes.length,
+    proceso: incidentes.filter(i => i.estado === "En proceso").length,
+    cerrados: incidentes.filter(i => i.estado === "Cerrado").length,
+    criticos: incidentes.filter(i => i.prioridad === "crítica").length,
+  }), [incidentes]);
 
-  const sp = priCfg(sel.prioridad);
-  const se = estCfg(sel.estado);
+  // Mutations — requieren sesión real (protectedProcedure)
+  const onMutError = (e: unknown) => {
+    const code = e instanceof TRPCClientError ? e.data?.code : undefined;
+    toast.error(code === "UNAUTHORIZED" ? "Requiere sesión iniciada" : "No se pudo completar la acción");
+  };
+  const okOr = (data: { success: boolean; message?: string }, onOk: () => void) => {
+    if (data.success) { refetch(); onOk(); }
+    else toast.error(data.message || "No se pudo completar la acción — BD no disponible");
+  };
+  const crearMut = trpc.incidentes.crear.useMutation({
+    onSuccess: d => okOr(d, () => {
+      toast.success("Incidente creado.");
+      setShowNewDialog(false);
+      setNewIncidente({ tipo: "", municipio: "", colonia: "", narrativa: "", prioridad: "media" });
+    }),
+    onError: onMutError,
+  });
+  const actualizarMut = trpc.incidentes.actualizar.useMutation({ onSuccess: d => okOr(d, () => toast.success("Incidente actualizado.")), onError: onMutError });
+  const eliminarMut = trpc.incidentes.eliminar.useMutation({ onSuccess: d => okOr(d, () => { toast.success("Incidente eliminado."); setSelId(""); }), onError: onMutError });
+
+  // `_dbId` puede ser 0 en una fila real (PK reiniciada) — nunca usar `!dbId`.
+  const getDbId = (i: IncidenteUI | undefined) => i?._dbId;
+
+  const handleCrearIncidente = () => {
+    if (!newIncidente.tipo || !newIncidente.municipio || !newIncidente.narrativa) {
+      toast.error("Completa tipo, municipio y narrativa");
+      return;
+    }
+    crearMut.mutate({
+      tipo: newIncidente.tipo,
+      municipio: newIncidente.municipio,
+      colonia: newIncidente.colonia || undefined,
+      narrativa: newIncidente.narrativa,
+      prioridad: PRIORIDAD_LABEL_TO_DB[newIncidente.prioridad] || "media",
+    });
+    // Dialog/form se limpian solo si crearMut tiene éxito (ver onSuccess arriba) —
+    // así no se pierde lo escrito si la mutación falla (ej. sesión expirada).
+  };
+
+  const handleCambiarEstado = (nuevoEstadoLabel: string) => {
+    const dbId = getDbId(sel);
+    if (dbId === undefined) { toast.info("Vista de demostración — inicia sesión para modificar incidentes."); return; }
+    actualizarMut.mutate({ id: dbId, estado: ESTADO_LABEL_TO_DB[nuevoEstadoLabel] });
+  };
+
+  const handleToggleAtendido = () => {
+    const dbId = getDbId(sel);
+    if (dbId === undefined) { toast.info("Vista de demostración — inicia sesión para modificar incidentes."); return; }
+    actualizarMut.mutate({ id: dbId, atendido: !sel.atendido });
+  };
+
+  const handleEliminar = () => {
+    const dbId = getDbId(sel);
+    if (dbId === undefined) { toast.info("Vista de demostración — inicia sesión para modificar incidentes."); return; }
+    if (!confirm("¿Eliminar este incidente de la base de datos?")) return;
+    eliminarMut.mutate({ id: dbId });
+  };
+
+  const sp = sel ? priCfg(sel.prioridad) : priCfg("");
+  const se = sel ? estCfg(sel.estado) : estCfg("");
 
   return (
     <div className="flex flex-col h-full overflow-hidden" style={{ background: "var(--px-bg)", padding: "var(--px-3)", gap: "var(--px-3)" }}>
@@ -66,7 +192,7 @@ export default function IncidentesTab() {
       <div className={`px-card ${showMobileDetail ? "hidden md:flex" : "flex"} flex-col md:flex-row md:items-center gap-3`} style={{ padding: "var(--px-3) var(--px-4)", flexShrink: 0 }}>
         {/* Izq: badge + KPIs */}
         <div className="flex items-center gap-3 flex-wrap">
-          <OriginBadge real={false} />
+          <OriginBadge real={esReal} />
           <div className="flex" style={{ borderRadius: "var(--px-r-sm)", overflow: "hidden", border: "1px solid var(--px-hairline)" }}>
             {[
               { l: "Total", v: kpis.total, c: "var(--px-brand)" },
@@ -92,6 +218,9 @@ export default function IncidentesTab() {
             <ChevronDown size={11} className="inline ml-1" style={{ transform: showFilters ? "rotate(180deg)" : "none", transition: "transform 0.2s" }} />
           </button>
           <ExportIncidenciaDialog />
+          <button onClick={() => setShowNewDialog(true)} className="px-btn px-btn-primary" style={{ padding: "5px 10px", fontSize: "var(--px-text-xs)" }}>
+            <Plus size={12} /> NUEVO
+          </button>
         </div>
       </div>
 
@@ -123,7 +252,7 @@ export default function IncidentesTab() {
               return (
                 <div key={inc.id} role="row" aria-selected={isSel} className="cursor-pointer transition-all"
                   style={{ borderBottom: "1px solid var(--px-hairline)", background: isSel ? "color-mix(in srgb, var(--px-brand) 6%, transparent)" : "transparent", boxShadow: isSel ? "inset 3px 0 0 var(--px-brand)" : "none" }}
-                  onClick={() => { setSel(inc); setShowMobileDetail(true); }}>
+                  onClick={() => { setSelId(inc.id); setShowMobileDetail(true); }}>
                   {/* Mobile card — compacto */}
                   <div className="md:hidden" style={{ padding: "var(--px-2) var(--px-3)" }}>
                     <div className="flex items-center gap-1.5">
@@ -189,6 +318,33 @@ export default function IncidentesTab() {
                 ))}
               </div>
 
+              {/* Acciones — solo mutan filas reales; en mock avisan "vista de demostración" */}
+              <div className="grid grid-cols-2 gap-2" style={{ marginBottom: "var(--px-3)" }}>
+                {sel.estado !== "En proceso" && (
+                  <button onClick={() => handleCambiarEstado("En proceso")} className="px-btn px-btn-secondary" style={{ minHeight: 38, fontSize: "var(--px-text-xs)" }}>
+                    <ArrowLeft size={13} /> REABRIR
+                  </button>
+                )}
+                {sel.estado !== "Investigación" && (
+                  <button onClick={() => handleCambiarEstado("Investigación")} className="px-btn px-btn-secondary" style={{ minHeight: 38, fontSize: "var(--px-text-xs)" }}>
+                    <Search size={13} /> INVESTIGACIÓN
+                  </button>
+                )}
+                {sel.estado !== "Cerrado" && (
+                  <button onClick={() => handleCambiarEstado("Cerrado")} className="px-btn" style={{ minHeight: 38, fontSize: "var(--px-text-xs)", color: "var(--px-ok)", background: "color-mix(in srgb, var(--px-ok) 10%, transparent)", borderColor: "color-mix(in srgb, var(--px-ok) 25%, transparent)" }}>
+                    <CheckCircle size={13} /> CERRAR
+                  </button>
+                )}
+                <button onClick={handleToggleAtendido} className="px-btn px-btn-secondary" style={{ minHeight: 38, fontSize: "var(--px-text-xs)" }}>
+                  <CheckCircle size={13} /> {sel.atendido ? "MARCAR NO ATENDIDO" : "MARCAR ATENDIDO"}
+                </button>
+                {esReal && getDbId(sel) !== undefined && (
+                  <button onClick={handleEliminar} className="px-btn px-btn-danger" style={{ minHeight: 38, fontSize: "var(--px-text-xs)" }}>
+                    <Trash2 size={13} /> ELIMINAR
+                  </button>
+                )}
+              </div>
+
               <button onClick={() => setShowModal(true)} className="px-btn px-btn-primary w-full mb-3" style={{ minHeight: 40 }}>
                 <FileText size={14} /> Ver detalle completo
               </button>
@@ -236,6 +392,63 @@ export default function IncidentesTab() {
       </div>
 
       <IncidentDetailModal incident={sel} isOpen={showModal} onClose={() => setShowModal(false)} />
+
+      {/* ── Dialog: nuevo incidente ── */}
+      {showNewDialog && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-overlay" style={{ background: "rgba(0,0,0,0.7)", backdropFilter: "blur(4px)" }}>
+          <div role="dialog" aria-modal="true" aria-labelledby="new-incidente-title" className="w-full max-w-lg rounded-lg mx-4 px-dialog-enter" style={{ background: "var(--px-surface)", border: "1px solid var(--px-hairline)", padding: "var(--px-5)" }}>
+            <div className="flex items-center justify-between" style={{ marginBottom: "var(--px-4)" }}>
+              <span id="new-incidente-title" style={{ fontFamily: "var(--px-display)", fontSize: "var(--px-text-lg)", fontWeight: 700, color: "var(--px-text)" }}>
+                REGISTRAR NUEVO INCIDENTE
+              </span>
+              <button onClick={() => setShowNewDialog(false)} aria-label="Cerrar" className="px-btn px-btn-secondary" style={{ padding: "4px 8px" }}>&#x2715;</button>
+            </div>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: "var(--px-3)" }}>
+              <div className="flex gap-2">
+                {(["baja", "media", "alta", "crítica"] as const).map(pr => {
+                  const pc = priCfg(pr);
+                  return (
+                    <button key={pr} onClick={() => setNewIncidente(p => ({ ...p, prioridad: pr }))}
+                      className="px-btn flex-1" data-active={newIncidente.prioridad === pr}
+                      style={{ color: pc.color, padding: "8px", textTransform: "uppercase", fontSize: "var(--px-text-xs)",
+                        background: newIncidente.prioridad === pr ? pc.bg : "transparent",
+                        borderColor: newIncidente.prioridad === pr ? pc.color : "var(--px-hairline)" }}>
+                      {pr}
+                    </button>
+                  );
+                })}
+              </div>
+              <div>
+                <label className="px-label">TIPO *</label>
+                <input value={newIncidente.tipo} onChange={e => setNewIncidente(p => ({ ...p, tipo: e.target.value }))} placeholder="Ej: Robo a transeúnte" className="px-input" />
+              </div>
+              <div>
+                <label className="px-label">MUNICIPIO *</label>
+                <select value={newIncidente.municipio} onChange={e => setNewIncidente(p => ({ ...p, municipio: e.target.value }))} className="px-input">
+                  <option value="">Seleccionar municipio...</option>
+                  {municipios125.map((m: string) => <option key={m} value={m}>{m}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="px-label">COLONIA</label>
+                <input value={newIncidente.colonia} onChange={e => setNewIncidente(p => ({ ...p, colonia: e.target.value }))} placeholder="Ej: Centro" className="px-input" />
+              </div>
+              <div>
+                <label className="px-label">NARRATIVA *</label>
+                <textarea value={newIncidente.narrativa} onChange={e => setNewIncidente(p => ({ ...p, narrativa: e.target.value }))} placeholder="Descripción detallada del hecho..." rows={3} className="px-input" style={{ resize: "vertical" }} />
+              </div>
+            </div>
+
+            <div className="flex gap-3" style={{ marginTop: "var(--px-5)" }}>
+              <button onClick={() => setShowNewDialog(false)} className="px-btn px-btn-secondary flex-1">CANCELAR</button>
+              <button onClick={handleCrearIncidente} className="px-btn px-btn-primary flex-1">
+                <FileText size={14} /> REGISTRAR INCIDENTE
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

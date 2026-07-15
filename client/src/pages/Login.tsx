@@ -8,9 +8,8 @@
 import { useEffect, useState } from "react";
 import { useLocation } from "wouter";
 import { AlertCircle, ArrowRight, Eye, EyeOff } from "lucide-react";
+import { trpc } from "@/lib/trpc";
 import {
-  DEMO_CREDENTIALS,
-  resolveRoleFromCredentials,
   useDemoSession,
   type DemoRole,
 } from "@/contexts/DemoSessionContext";
@@ -75,6 +74,7 @@ export default function Login() {
   const [password, setPassword] = useState("");
   const [showPwd, setShowPwd] = useState(false);
   const [error, setError] = useState("");
+  const loginMutation = trpc.auth.institutionalLogin.useMutation();
 
   // Si ya hay sesión demo, salta el login.
   useEffect(() => {
@@ -86,27 +86,42 @@ export default function Login() {
     navigate("/", { replace: true });
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const toDemoRole = (institutionalRole: string): DemoRole =>
+    institutionalRole === "admin" ? "admin" : "analista";
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
     if (!employeeId || !email || !password) {
       setError("Completa todos los campos.");
       return;
     }
-    const resolved = resolveRoleFromCredentials(employeeId, email, password);
-    if (!resolved) {
+    try {
+      const result = await loginMutation.mutateAsync({ employeeId, email, password });
+      enter(toDemoRole(result.role));
+    } catch {
       setError("Credenciales inválidas. Verifica tu número de empleado, correo y contraseña.");
-      return;
     }
-    enter(resolved);
   };
 
-  const quickFill = (r: DemoRole) => {
-    const c = DEMO_CREDENTIALS[r];
+  // Coincide con los 7 usuarios institucionales reales sembrados (uno por rol,
+  // ver CLAUDE.md → Inconsistencia #2). Password temporal de scripts/seed-passwords.ts.
+  const QUICK_FILL: Record<DemoRole, { employeeId: string; email: string; password: string }> = {
+    admin: { employeeId: "EMP-001", email: "r.hernandez@edomex.gob.mx", password: "Demo@2026" },
+    analista: { employeeId: "EMP-003", email: "c.mendoza@edomex.gob.mx", password: "Demo@2026" },
+  };
+
+  const quickFill = async (r: DemoRole) => {
+    const c = QUICK_FILL[r];
     setEmployeeId(c.employeeId);
     setEmail(c.email);
     setPassword(c.password);
-    enter(r);
+    try {
+      const result = await loginMutation.mutateAsync(c);
+      enter(toDemoRole(result.role));
+    } catch {
+      setError("No se pudo iniciar sesión con las credenciales de demo.");
+    }
   };
 
   return (

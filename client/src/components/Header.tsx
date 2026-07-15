@@ -10,7 +10,7 @@ import { useLocation } from "wouter";
 import UserPanel, { type UserProfile } from "./UserPanel";
 import NotificationPanel from "./NotificationPanel";
 import { useAuth } from "@/_core/hooks/useAuth";
-import { useDemoSession, DEMO_CREDENTIALS } from "@/contexts/DemoSessionContext";
+import { useDemoSession, DEMO_ROLE_LABELS } from "@/contexts/DemoSessionContext";
 
 // Tokens sobrio-institucional (alineados al NotificationPanel).
 // Cian = solo acento de marca puntual; el color lo carga la severidad/estado.
@@ -110,7 +110,7 @@ export default function Header() {
   const [, navigate] = useLocation();
 
   // Etiqueta de rol a mostrar: el rol de la demo manda en la UI.
-  const demoRoleLabel = demoRole ? DEMO_CREDENTIALS[demoRole].label : null;
+  const demoRoleLabel = demoRole ? DEMO_ROLE_LABELS[demoRole] : null;
 
   // Build user profile from auth data or fallback to demo data
   const user: UserProfile = authUser

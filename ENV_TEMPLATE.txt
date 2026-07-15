@@ -19,11 +19,6 @@ VAULT_MASTER_KEY=genere_una_clave_hex_de_64_caracteres_aqui
 # solo permite alternar la vista con/sin sesion sin pasar por OAuth.
 VITE_DEMO_MODE=false
 
-# -- OAuth (Configurar con su proveedor de identidad) --
-VITE_APP_ID=su_app_id
-OAUTH_SERVER_URL=https://su-servidor-oauth.com
-VITE_OAUTH_PORTAL_URL=https://su-portal-login.com
-
 # -- Informacion del Propietario --
 OWNER_OPEN_ID=id_del_propietario
 OWNER_NAME=Nombre del Administrador

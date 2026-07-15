@@ -43,9 +43,6 @@ export default function InstitutionalLogin({ onLoginSuccess }: InstitutionalLogi
       if (result.success) {
         toast.success("Sesión iniciada correctamente");
         onLoginSuccess?.();
-      } else {
-        setError(result.message || "Error al iniciar sesión");
-        toast.error(result.message || "Error al iniciar sesión");
       }
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : "Error desconocido";

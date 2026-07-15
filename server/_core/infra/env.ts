@@ -5,14 +5,11 @@ const envSchema = z.object({
   JWT_SECRET: z.string().min(1, "JWT_SECRET es obligatoria"),
   VAULT_MASTER_KEY: z.string().min(1, "VAULT_MASTER_KEY es obligatoria"),
   DATABASE_URL: z.string().optional().default(""),
-  VITE_APP_ID: z.string().optional().default(""),
-  OAUTH_SERVER_URL: z.string().optional().default(""),
   OWNER_OPEN_ID: z.string().optional().default(""),
   BUILT_IN_FORGE_API_URL: z.string().optional().default(""),
   BUILT_IN_FORGE_API_KEY: z.string().optional().default(""),
   NODE_ENV: z.string().optional().default("development"),
   PORT: z.string().optional().default("3000"),
-  ENABLE_DEMO_LOGIN: z.string().optional().default("true"),
   VITE_FRONTEND_URL: z.string().optional().default(""),
 });
 
@@ -37,16 +34,13 @@ function parseEnv() {
 const validated = parseEnv();
 
 export const ENV = {
-  appId: validated.VITE_APP_ID,
   cookieSecret: validated.JWT_SECRET,
   vaultMasterKey: validated.VAULT_MASTER_KEY,
   databaseUrl: validated.DATABASE_URL,
-  oAuthServerUrl: validated.OAUTH_SERVER_URL,
   ownerOpenId: validated.OWNER_OPEN_ID,
   isProduction: validated.NODE_ENV === "production",
   forgeApiUrl: validated.BUILT_IN_FORGE_API_URL,
   forgeApiKey: validated.BUILT_IN_FORGE_API_KEY,
   port: parseInt(validated.PORT),
-  enableDemoLogin: validated.ENABLE_DEMO_LOGIN === "true",
   frontendUrl: validated.VITE_FRONTEND_URL,
 };

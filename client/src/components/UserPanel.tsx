@@ -16,7 +16,7 @@ import {
   Settings, ChevronLeft, Lock, Phone, Save, Send, Clock, Fingerprint, MonitorSmartphone,
 } from "lucide-react";
 import { NAV_GROUPS } from "./navConfig";
-import { useDemoSession, DEMO_CREDENTIALS } from "@/contexts/DemoSessionContext";
+import { useDemoSession, DEMO_ROLE_LABELS } from "@/contexts/DemoSessionContext";
 
 const CONTACT_KEY = "predix:contact";
 
@@ -101,10 +101,9 @@ export default function UserPanel({ user, onClose, onLogout }: UserPanelProps) {
     });
   };
 
-  const cred = role ? DEMO_CREDENTIALS[role] : null;
-  const roleLabel = cred ? cred.label : user.rol;
-  const employeeId = cred ? cred.employeeId : "—";
-  const email = cred ? cred.email : user.correo;
+  const roleLabel = role ? DEMO_ROLE_LABELS[role] : user.rol;
+  const employeeId = "—";
+  const email = user.correo;
 
   // Niveles de acceso = grupos de navegación visibles para el rol.
   const clearances = NAV_GROUPS.map((g) => ({

@@ -1,44 +1,20 @@
 // ============================================================
 // DEMO SESSION — Sesión de presentación 100% client-side.
-// Fuente de verdad del ROL en la demo (Administrador/Analista).
-// Persiste en sessionStorage; NO toca OAuth ni protectedProcedure
-// (esos siguen usando ctx.user real). Capa de presentación para
-// mostrar el control de acceso por rol sin depender de MySQL.
-//
-// ⚠️ Antes de producción: reemplazar por el rol real del usuario
-// autenticado (users.institutionalRole) — ver auth.ts DEFAULT_PERMISSIONS.
-// Administrador → "admin", Analista → "analista".
+// Fuente de verdad del ROL visible en la UI (Administrador/Analista).
+// Persiste en sessionStorage. El rol se recibe de auth.institutionalLogin
+// (login real contra la tabla users) y solo se usa para el gate de
+// tabs "Sistema" en Home; AuthGuard usa ctx.user real vía auth.me.
 // ============================================================
 
 import { createContext, useCallback, useContext, useMemo, useState } from "react";
 
 export type DemoRole = "admin" | "analista";
 
-export interface DemoCredential {
-  role: DemoRole;
-  label: string;
-  employeeId: string;
-  email: string;
-  password: string;
-}
-
-// Credenciales demo. El form valida contra estas para asignar rol;
-// los botones de acceso rápido entran directo con el rol.
-export const DEMO_CREDENTIALS: Record<DemoRole, DemoCredential> = {
-  admin: {
-    role: "admin",
-    label: "Administrador",
-    employeeId: "ADM-2026-001",
-    email: "admin@edomex.gob.mx",
-    password: "Demo@2026",
-  },
-  analista: {
-    role: "analista",
-    label: "Analista",
-    employeeId: "ANA-2026-014",
-    email: "analista@edomex.gob.mx",
-    password: "Demo@2026",
-  },
+// Solo etiqueta de despliegue — ya no hay credenciales fake que mostrar,
+// el login real vive en auth.institutionalLogin.
+export const DEMO_ROLE_LABELS: Record<DemoRole, string> = {
+  admin: "Administrador",
+  analista: "Analista",
 };
 
 const STORAGE_KEY = "predix:demo-session";
@@ -110,24 +86,4 @@ export function useDemoSession(): DemoSessionState {
   const ctx = useContext(DemoSessionContext);
   if (!ctx) throw new Error("useDemoSession debe usarse dentro de <DemoSessionProvider>");
   return ctx;
-}
-
-/** Intenta resolver un rol a partir de credenciales tecleadas. */
-export function resolveRoleFromCredentials(
-  employeeId: string,
-  email: string,
-  password: string,
-): DemoRole | null {
-  const id = employeeId.trim().toLowerCase();
-  const mail = email.trim().toLowerCase();
-  for (const cred of Object.values(DEMO_CREDENTIALS)) {
-    if (
-      cred.employeeId.toLowerCase() === id &&
-      cred.email.toLowerCase() === mail &&
-      cred.password === password
-    ) {
-      return cred.role;
-    }
-  }
-  return null;
 }

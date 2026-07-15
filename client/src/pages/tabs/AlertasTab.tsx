@@ -133,7 +133,9 @@ export default function AlertasTab() {
   // excepción — onSuccess debe revisar ese campo, no solo "la promesa no rechazó".
   const onMutError = (e: unknown) => {
     const code = e instanceof TRPCClientError ? e.data?.code : undefined;
-    toast.error(code === "UNAUTHORIZED" ? "Requiere sesión iniciada" : "No se pudo completar la acción");
+    if (code === "UNAUTHORIZED") toast.error("Requiere sesión iniciada");
+    else if (code === "FORBIDDEN") toast.error("Tu rol no tiene permiso para esta acción");
+    else toast.error("No se pudo completar la acción");
   };
   const okOr = (data: { success: boolean; message?: string }, onOk: () => void) => {
     refetch();

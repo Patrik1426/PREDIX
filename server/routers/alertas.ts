@@ -5,6 +5,7 @@ import { alertas } from "../../drizzle/schema";
 import { MODULES } from "../_core/infra/permissions";
 import { eq, desc, gte, lte, and, sql } from "drizzle-orm";
 import { logger } from "../_core/logger";
+import { logAudit } from "../config/auditLog";
 
 export const alertasRouter = router({
   listar: publicProcedure
@@ -36,10 +37,17 @@ export const alertasRouter = router({
 
   eliminar: requirePermission(MODULES.ALERTAS, "canDelete")
     .input(z.object({ id: z.number() }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
       const db = await getDb();
       if (!db) return { success: false };
       await db.delete(alertas).where(eq(alertas.id, input.id));
+      await logAudit({
+        userId: ctx.user.id,
+        action: "DELETE_ALERTA",
+        module: "alertas",
+        resourceId: String(input.id),
+        ip: ctx.req.ip || "unknown",
+      });
       return { success: true };
     }),
 
@@ -52,11 +60,11 @@ export const alertasRouter = router({
       lat: z.number().optional(),
       lng: z.number().optional(),
     }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
       const db = await getDb();
       if (!db) return { success: false, message: "BD no disponible" };
       try {
-        await db.insert(alertas).values({
+        const result = await db.insert(alertas).values({
           nivel: input.nivel,
           titulo: input.titulo,
           descripcion: input.descripcion || "",
@@ -64,6 +72,14 @@ export const alertasRouter = router({
           lat: input.lat?.toString(),
           lng: input.lng?.toString(),
           unidades: 0,
+        });
+        await logAudit({
+          userId: ctx.user.id,
+          action: "CREATE_ALERTA",
+          module: "alertas",
+          resourceId: String(result[0].insertId),
+          details: `${input.titulo} (${input.municipio})`,
+          ip: ctx.req.ip || "unknown",
         });
         return { success: true, message: "Alerta creada" };
       } catch (e) {
@@ -74,39 +90,67 @@ export const alertasRouter = router({
 
   reconocer: requirePermission(MODULES.ALERTAS, "canEdit")
     .input(z.object({ id: z.number() }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
       const db = await getDb();
       if (!db) return { success: false };
       await db.update(alertas).set({ reconocida: 1 }).where(eq(alertas.id, input.id));
+      await logAudit({
+        userId: ctx.user.id,
+        action: "ACK_ALERTA",
+        module: "alertas",
+        resourceId: String(input.id),
+        ip: ctx.req.ip || "unknown",
+      });
       return { success: true };
     }),
 
   escalar: requirePermission(MODULES.ALERTAS, "canEdit")
     .input(z.object({ id: z.number() }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
       const db = await getDb();
       if (!db) return { success: false };
       await db.update(alertas).set({ escalada: 1, nivel: "critical" }).where(eq(alertas.id, input.id));
+      await logAudit({
+        userId: ctx.user.id,
+        action: "ESCALATE_ALERTA",
+        module: "alertas",
+        resourceId: String(input.id),
+        ip: ctx.req.ip || "unknown",
+      });
       return { success: true };
     }),
 
   despachar: requirePermission(MODULES.ALERTAS, "canEdit")
     .input(z.object({ id: z.number(), cantidad: z.number().default(2) }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
       const db = await getDb();
       if (!db) return { success: false };
       const existing = await db.select({ unidades: alertas.unidades }).from(alertas).where(eq(alertas.id, input.id));
       if (existing.length === 0) return { success: false };
       await db.update(alertas).set({ unidades: existing[0].unidades + input.cantidad }).where(eq(alertas.id, input.id));
+      await logAudit({
+        userId: ctx.user.id,
+        action: "DISPATCH_ALERTA",
+        module: "alertas",
+        resourceId: String(input.id),
+        ip: ctx.req.ip || "unknown",
+      });
       return { success: true };
     }),
 
   resolver: requirePermission(MODULES.ALERTAS, "canEdit")
     .input(z.object({ id: z.number() }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
       const db = await getDb();
       if (!db) return { success: false };
       await db.update(alertas).set({ resuelta: 1, nivel: "safe" }).where(eq(alertas.id, input.id));
+      await logAudit({
+        userId: ctx.user.id,
+        action: "RESOLVE_ALERTA",
+        module: "alertas",
+        resourceId: String(input.id),
+        ip: ctx.req.ip || "unknown",
+      });
       return { success: true };
     }),
 });

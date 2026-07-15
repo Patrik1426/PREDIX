@@ -5,6 +5,7 @@ import { incidentes } from "../../drizzle/schema";
 import { MODULES } from "../_core/infra/permissions";
 import { eq, desc, gte, lte, and } from "drizzle-orm";
 import { logger } from "../_core/logger";
+import { logAudit } from "../config/auditLog";
 
 const estadoSchema = z.enum(["en_proceso", "cerrado", "investigacion"]);
 const prioridadSchema = z.enum(["baja", "media", "alta", "critica"]);
@@ -90,6 +91,14 @@ export const incidentesRouter = router({
             personal: input.personal,
             createdBy: ctx.user?.email || ctx.user?.openId,
           });
+          await logAudit({
+            userId: ctx.user.id,
+            action: "CREATE_INCIDENTE",
+            module: "incidentes",
+            resourceId: folio,
+            details: `${input.tipo} (${input.municipio})`,
+            ip: ctx.req.ip || "unknown",
+          });
           return { success: true, message: "Incidente creado", folio };
         } catch (e) {
           const isDuplicateFolio = (e as { code?: string; errno?: number })?.code === "ER_DUP_ENTRY"
@@ -119,7 +128,7 @@ export const incidentesRouter = router({
       personal: z.string().optional(),
       atendido: z.boolean().optional(),
     }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
       const db = await getDb();
       if (!db) return { success: false };
       try {
@@ -127,6 +136,13 @@ export const incidentesRouter = router({
         await db.update(incidentes)
           .set({ ...rest, ...(atendido !== undefined ? { atendido: atendido ? 1 : 0 } : {}) })
           .where(eq(incidentes.id, id));
+        await logAudit({
+          userId: ctx.user.id,
+          action: "UPDATE_INCIDENTE",
+          module: "incidentes",
+          resourceId: String(id),
+          ip: ctx.req.ip || "unknown",
+        });
         return { success: true };
       } catch (e) {
         logger.error("[Incidentes] Error updating:", e);
@@ -136,11 +152,18 @@ export const incidentesRouter = router({
 
   eliminar: requirePermission(MODULES.INCIDENTES, "canDelete")
     .input(z.object({ id: z.number() }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
       const db = await getDb();
       if (!db) return { success: false };
       try {
         await db.delete(incidentes).where(eq(incidentes.id, input.id));
+        await logAudit({
+          userId: ctx.user.id,
+          action: "DELETE_INCIDENTE",
+          module: "incidentes",
+          resourceId: String(input.id),
+          ip: ctx.req.ip || "unknown",
+        });
         return { success: true };
       } catch (e) {
         logger.error("[Incidentes] Error deleting:", e);

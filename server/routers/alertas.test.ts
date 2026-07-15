@@ -142,3 +142,15 @@ describe("alertas mutations — permisos por rol", () => {
     expect(result.success).toBe(false); // degrada por BD en test, no rechaza por permiso
   });
 });
+
+describe("alertas mutations — auditoría", () => {
+  it("crear no truena aunque logAudit exista en el flujo (modo degradado sin BD)", async () => {
+    const caller = createAuthCaller();
+    // En modo degradado (sin BD) crear() devuelve success:false antes de
+    // llegar a logAudit() — este test confirma que agregar la llamada de
+    // auditoría no rompe el flujo de la mutación. La aserción de "logAudit
+    // se llamó con los argumentos correctos" vive en auditLog.test.ts.
+    const result = await caller.alertas.crear({ nivel: "info", titulo: "x", municipio: "Toluca" });
+    expect(result.success).toBe(false);
+  });
+});

@@ -6,6 +6,7 @@ import { eq } from "drizzle-orm";
 import { logger } from "../_core/logger";
 import { toPublicUser } from "../_core/auth/sanitizeUser";
 import { hashPassword } from "../_core/auth/password";
+import { logAudit } from "../config/auditLog";
 
 const institutionalRoleSchema = z.enum(["operador", "supervisor", "analista", "admin", "consulta", "policia", "comandante"]);
 
@@ -32,7 +33,7 @@ export const usuariosRouter = router({
       employeeId: z.string().optional(),
       password: z.string().min(8),
     }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
       const db = await getDb();
       if (!db) return { success: false };
       const openId = `manual:${input.email}`;
@@ -49,6 +50,14 @@ export const usuariosRouter = router({
         employeeId: input.employeeId,
         passwordHash,
       });
+      await logAudit({
+        userId: ctx.user.id,
+        action: "CREATE_USER",
+        module: "usuarios",
+        resourceId: String(result[0].insertId),
+        details: input.email,
+        ip: ctx.req.ip || "unknown",
+      });
       return { success: true, id: result[0].insertId };
     }),
 
@@ -60,11 +69,18 @@ export const usuariosRouter = router({
       department: z.string().optional(),
       status: z.enum(["active", "inactive", "suspended"]).optional(),
     }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
       const db = await getDb();
       if (!db) return { success: false };
       const { id, ...rest } = input;
       await db.update(users).set(rest).where(eq(users.id, id));
+      await logAudit({
+        userId: ctx.user.id,
+        action: "UPDATE_USER",
+        module: "usuarios",
+        resourceId: String(id),
+        ip: ctx.req.ip || "unknown",
+      });
       return { success: true };
     }),
 
@@ -73,20 +89,34 @@ export const usuariosRouter = router({
       id: z.number(),
       password: z.string().min(8),
     }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
       const db = await getDb();
       if (!db) return { success: false };
       const passwordHash = await hashPassword(input.password);
       await db.update(users).set({ passwordHash }).where(eq(users.id, input.id));
+      await logAudit({
+        userId: ctx.user.id,
+        action: "RESET_PASSWORD",
+        module: "usuarios",
+        resourceId: String(input.id),
+        ip: ctx.req.ip || "unknown",
+      });
       return { success: true };
     }),
 
   eliminar: protectedProcedure
     .input(z.object({ id: z.number() }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
       const db = await getDb();
       if (!db) return { success: false };
       await db.delete(users).where(eq(users.id, input.id));
+      await logAudit({
+        userId: ctx.user.id,
+        action: "DELETE_USER",
+        module: "usuarios",
+        resourceId: String(input.id),
+        ip: ctx.req.ip || "unknown",
+      });
       return { success: true };
     }),
 });

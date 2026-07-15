@@ -17,6 +17,7 @@ const AUTH_USER: AuthenticatedUser = {
   name: "Sample User",
   loginMethod: "manus",
   role: "user",
+  institutionalRole: "admin",
   createdAt: new Date(),
   updatedAt: new Date(),
   lastSignedIn: new Date(),

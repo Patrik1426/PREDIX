@@ -6,6 +6,7 @@
  */
 
 import { describe, expect, it } from "vitest";
+import { TRPCError } from "@trpc/server";
 import { appRouter } from "../routers";
 import type { TrpcContext } from "../_core/auth/context";
 
@@ -90,5 +91,54 @@ describe("alertas mutations — modo degradado (sin BD)", () => {
   it("despachar usa cantidad=2 por default", async () => {
     // Solo valida que el input opcional no rompa el parseo zod.
     await expect(caller.alertas.despachar({ id: 1 })).resolves.toMatchObject({ success: false });
+  });
+});
+
+describe("alertas mutations — permisos por rol", () => {
+  function createCallerWithRole(institutionalRole: AuthenticatedUser["institutionalRole"]) {
+    const ctx: TrpcContext = {
+      user: { ...AUTH_USER, institutionalRole },
+      req: { protocol: "https", headers: {} } as TrpcContext["req"],
+      res: {} as TrpcContext["res"],
+    };
+    return appRouter.createCaller(ctx);
+  }
+
+  it("consulta no puede crear alertas (canEdit:0)", async () => {
+    const caller = createCallerWithRole("consulta");
+    try {
+      await caller.alertas.crear({ nivel: "info", titulo: "x", municipio: "Toluca" });
+      throw new Error("esperaba que rechazara");
+    } catch (e) {
+      expect((e as TRPCError).code).toBe("FORBIDDEN");
+    }
+  });
+
+  it("operador no puede escalar alertas (alertas.canEdit:0)", async () => {
+    const caller = createCallerWithRole("operador");
+    try {
+      await caller.alertas.escalar({ id: 1 });
+      throw new Error("esperaba que rechazara");
+    } catch (e) {
+      expect((e as TRPCError).code).toBe("FORBIDDEN");
+    }
+  });
+
+  it("supervisor puede crear/escalar alertas pero no eliminarlas (canEdit:1, canDelete:0)", async () => {
+    const caller = createCallerWithRole("supervisor");
+    const crear = await caller.alertas.crear({ nivel: "info", titulo: "x", municipio: "Toluca" });
+    expect(crear.success).toBe(false); // degrada por BD en test, no por permiso
+    try {
+      await caller.alertas.eliminar({ id: 1 });
+      throw new Error("esperaba que rechazara");
+    } catch (e) {
+      expect((e as TRPCError).code).toBe("FORBIDDEN");
+    }
+  });
+
+  it("admin puede eliminar alertas (canDelete:1)", async () => {
+    const caller = createCallerWithRole("admin");
+    const result = await caller.alertas.eliminar({ id: 1 });
+    expect(result.success).toBe(false); // degrada por BD en test, no rechaza por permiso
   });
 });

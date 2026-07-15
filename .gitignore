@@ -112,6 +112,9 @@ data/**/*.xlsx
 data/**/*.xls
 data/**/*.zip
 
+# Playwright MCP debug artifacts (console logs, page snapshots)
+.playwright-mcp/
+
 # Webdev artifacts (checkpoint zips, migrations, etc.)
 .webdev/
 .agents/

@@ -6,6 +6,7 @@
 import { useState, useMemo } from "react";
 import { ALERTAS_ACTIVAS } from "@/data/securityData";
 import { trpc } from "@/lib/trpc";
+import { TRPCClientError } from "@trpc/client";
 import { ModuleHeader, OriginBadge, EmptyState } from "@/components/dashboard";
 import {
   Bell, AlertTriangle, Info, CheckCircle, XCircle, MapPin, Clock,
@@ -127,35 +128,46 @@ export default function AlertasTab() {
     resueltas: alertas.filter(a => a.resuelta).length,
   }), [alertas]);
 
-  // Mutations
-  const reconocerMut = trpc.alertas.reconocer.useMutation({ onSuccess: () => refetch() });
-  const escalarMut = trpc.alertas.escalar.useMutation({ onSuccess: () => refetch() });
-  const despacharMut = trpc.alertas.despachar.useMutation({ onSuccess: () => refetch() });
-  const resolverMut = trpc.alertas.resolver.useMutation({ onSuccess: () => refetch() });
-  const crearMut = trpc.alertas.crear.useMutation({ onSuccess: () => refetch() });
-  const eliminarMut = trpc.alertas.eliminar.useMutation({ onSuccess: () => refetch() });
+  // Mutations — requieren sesión real (protectedProcedure); onError cubre 401/red,
+  // pero el server también puede resolver con {success:false} (ej. BD caída) sin lanzar
+  // excepción — onSuccess debe revisar ese campo, no solo "la promesa no rechazó".
+  const onMutError = (e: unknown) => {
+    const code = e instanceof TRPCClientError ? e.data?.code : undefined;
+    toast.error(code === "UNAUTHORIZED" ? "Requiere sesión iniciada" : "No se pudo completar la acción");
+  };
+  const okOr = (data: { success: boolean; message?: string }, onOk: () => void) => {
+    refetch();
+    if (data.success) onOk();
+    else toast.error(data.message || "No se pudo completar la acción — BD no disponible");
+  };
+  const reconocerMut = trpc.alertas.reconocer.useMutation({ onSuccess: d => okOr(d, () => toast.success("Alerta reconocida.")), onError: onMutError });
+  const escalarMut = trpc.alertas.escalar.useMutation({ onSuccess: d => okOr(d, () => toast.warning("Alerta escalada a nivel CRÍTICO.")), onError: onMutError });
+  const despacharMut = trpc.alertas.despachar.useMutation({ onSuccess: d => okOr(d, () => toast.info("+2 unidades despachadas.")), onError: onMutError });
+  const resolverMut = trpc.alertas.resolver.useMutation({ onSuccess: d => okOr(d, () => toast.success("Alerta resuelta.")), onError: onMutError });
+  const crearMut = trpc.alertas.crear.useMutation({ onSuccess: d => okOr(d, () => toast.success("Alerta creada.")), onError: onMutError });
+  const eliminarMut = trpc.alertas.eliminar.useMutation({ onSuccess: d => okOr(d, () => toast.success("Alerta eliminada.")), onError: onMutError });
 
   const getDbId = (a: Alerta) => (a as any)._dbId as number | undefined;
 
   const handleReconocer = (id: string) => {
     const dbId = getDbId(alertas.find(a => a.id === id)!);
     if (dbId) reconocerMut.mutate({ id: dbId });
-    toast.success(`Alerta reconocida.`);
+    else toast.info("Vista de demostración — inicia sesión para modificar alertas.");
   };
   const handleEscalar = (id: string) => {
     const dbId = getDbId(alertas.find(a => a.id === id)!);
     if (dbId) escalarMut.mutate({ id: dbId });
-    toast.warning(`Alerta escalada a nivel CRÍTICO.`);
+    else toast.info("Vista de demostración — inicia sesión para modificar alertas.");
   };
   const handleResolver = (id: string) => {
     const dbId = getDbId(alertas.find(a => a.id === id)!);
     if (dbId) resolverMut.mutate({ id: dbId });
-    toast.success(`Alerta resuelta.`);
+    else toast.info("Vista de demostración — inicia sesión para modificar alertas.");
   };
   const handleDespachar = (id: string) => {
     const dbId = getDbId(alertas.find(a => a.id === id)!);
     if (dbId) despacharMut.mutate({ id: dbId, cantidad: 2 });
-    toast.info(`+2 unidades despachadas.`);
+    else toast.info("Vista de demostración — inicia sesión para modificar alertas.");
   };
   const handleCrearAlerta = () => {
     if (!newAlert.titulo || !newAlert.municipio) { toast.error("Completa título y municipio"); return; }
@@ -169,7 +181,6 @@ export default function AlertasTab() {
     });
     setShowNewAlertDialog(false);
     setNewAlert({ titulo: "", descripcion: "", municipio: "", nivel: "warning" });
-    toast.success("Alerta creada.");
   };
 
   const cfg = nivelCfg(sel.nivel);
@@ -363,7 +374,7 @@ export default function AlertasTab() {
                 <CheckCircle size={16} style={{ color: "var(--px-ok)" }} />
                 <span style={{ fontFamily: "var(--px-mono)", fontSize: "var(--px-text-sm)", color: "var(--px-ok)", flex: 1 }}>Alerta resuelta — situación controlada</span>
                 {esReal && getDbId(sel) && (
-                  <button onClick={() => { if (confirm("¿Eliminar esta alerta de la base de datos?")) { eliminarMut.mutate({ id: getDbId(sel)! }); setSelectedId(""); toast.success("Alerta eliminada"); } }}
+                  <button onClick={() => { if (confirm("¿Eliminar esta alerta de la base de datos?")) { eliminarMut.mutate({ id: getDbId(sel)! }); setSelectedId(""); } }}
                     className="px-btn px-btn-danger" style={{ padding: "3px 8px", fontSize: "var(--px-text-xs)" }}>
                     <Trash2 size={11} /> Eliminar
                   </button>

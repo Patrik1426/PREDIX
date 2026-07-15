@@ -16,6 +16,7 @@ import {
 import { toast } from "sonner";
 import { ModuleHeader, OriginBadge } from "@/components/dashboard";
 import { trpc } from "@/lib/trpc";
+import { TRPCClientError } from "@trpc/client";
 
 /* ─── Types ─── */
 interface User {
@@ -216,11 +217,30 @@ export default function AdminTab() {
     return INITIAL_USERS;
   }, [dbUsers, esReal]);
 
-  const crearUsuarioMut = trpc.usuarios.crear.useMutation({ onSuccess: () => refetchUsers() });
-  const actualizarUsuarioMut = trpc.usuarios.actualizar.useMutation({ onSuccess: () => refetchUsers() });
-  const eliminarUsuarioMut = trpc.usuarios.eliminar.useMutation({ onSuccess: () => refetchUsers() });
+  // Mutations requieren sesión real (protectedProcedure); onError cubre 401/red,
+  // pero el server también puede resolver con {success:false} (ej. BD caída) sin lanzar
+  // excepción — cada llamada debe revisar ese campo antes de mostrar éxito.
+  const onUsuarioMutError = (e: unknown) => {
+    const code = e instanceof TRPCClientError ? e.data?.code : undefined;
+    toast.error(code === "UNAUTHORIZED" ? "Requiere sesión iniciada" : "No se pudo completar la acción");
+  };
+  const okOrUsuario = (data: { success: boolean }, onOk: () => void) => {
+    refetchUsers();
+    if (data.success) onOk();
+    else toast.error("No se pudo completar la acción — BD no disponible");
+  };
+  const crearUsuarioMut = trpc.usuarios.crear.useMutation({ onError: onUsuarioMutError });
+  const actualizarUsuarioMut = trpc.usuarios.actualizar.useMutation({ onError: onUsuarioMutError });
+  const eliminarUsuarioMut = trpc.usuarios.eliminar.useMutation({ onError: onUsuarioMutError });
+  const resetPasswordMut = trpc.usuarios.resetPassword.useMutation({ onSuccess: () => refetchUsers() });
 
-  const [roles, setRoles] = useState<Role[]>(INITIAL_ROLES);
+  const [rolesBase, setRoles] = useState<Role[]>(INITIAL_ROLES);
+  // userCount se deriva de `users` (fuente real cuando hay sesión) en vez de mantenerse
+  // a mano en el estado — evita que el contador se desincronice tras un reload.
+  const roles = useMemo(
+    () => rolesBase.map(r => ({ ...r, userCount: users.filter(u => u.role === r.name).length })),
+    [rolesBase, users]
+  );
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>(DEMO_AUDIT_LOGS);
   const [expandedRole, setExpandedRole] = useState<number | null>(null);
   const [auditFilter, setAuditFilter] = useState<string>("all");
@@ -233,13 +253,14 @@ export default function AdminTab() {
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [editingRole, setEditingRole] = useState<Role | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<User | null>(null);
+  const [resetPasswordValue, setResetPasswordValue] = useState("");
 
   // New user form
   const [newUser, setNewUser] = useState({
     name: "", email: "", department: "", cargo: "", role: "Operador", status: "active" as "active" | "inactive",
     modules: [] as string[],
     idType: "patrulla" as "patrulla" | "grupo_operativo" | "gps" | "red_celular",
-    idValue: "", lat: "", lng: "",
+    idValue: "", lat: "", lng: "", password: "",
   });
 
   /* ─── Stats ─── */
@@ -279,6 +300,7 @@ export default function AdminTab() {
   /* ─── Create User ─── */
   const handleCreateUser = () => {
     if (!newUser.name || !newUser.email) { toast.error("Nombre y correo son obligatorios"); return; }
+    if (!newUser.password || newUser.password.length < 8) { toast.error("La contraseña debe tener al menos 8 caracteres"); return; }
     const needsId = newUser.role === "Policía" || newUser.role === "Comandante";
     if (needsId && !newUser.idValue) { toast.error("El campo de identificación es obligatorio para este rol"); return; }
 
@@ -287,29 +309,39 @@ export default function AdminTab() {
       email: newUser.email,
       institutionalRole: (ROLE_LABEL_TO_SLUG[newUser.role] || "operador") as any,
       department: newUser.department,
+      password: newUser.password,
+    }, {
+      onSuccess: d => okOrUsuario(d, () => {
+        addAuditLog("CREATE_USER", "Administración", `Nuevo usuario creado: ${newUser.name} (${newUser.role})`);
+        toast.success(`Usuario "${newUser.name}" registrado exitosamente`);
+      }),
     });
-    setRoles(prev => prev.map(r => r.name === newUser.role ? { ...r, userCount: r.userCount + 1 } : r));
-    addAuditLog("CREATE_USER", "Administración", `Nuevo usuario creado: ${newUser.name} (${newUser.role})`);
-    toast.success(`Usuario "${newUser.name}" registrado exitosamente`);
     setShowNewUserDialog(false);
-    setNewUser({ name: "", email: "", department: "", cargo: "", role: "Operador", status: "active", modules: [], idType: "patrulla", idValue: "", lat: "", lng: "" });
+    setNewUser({ name: "", email: "", department: "", cargo: "", role: "Operador", status: "active", modules: [], idType: "patrulla", idValue: "", lat: "", lng: "", password: "" });
   };
 
   /* ─── Toggle User Status ─── */
   const toggleUserStatus = (user: User) => {
+    if (!esReal) { toast.info("Vista de demostración — inicia sesión para modificar usuarios."); return; }
     const newStatus = user.status === "active" ? "suspended" : "active";
-    actualizarUsuarioMut.mutate({ id: user.id, status: newStatus });
-    addAuditLog("MODIFY_USER", "Administración", `${newStatus === "suspended" ? "Suspensión" : "Activación"} de usuario: ${user.email}`);
-    toast.success(`Usuario ${user.name} ${newStatus === "suspended" ? "suspendido" : "activado"}`);
+    actualizarUsuarioMut.mutate({ id: user.id, status: newStatus }, {
+      onSuccess: d => okOrUsuario(d, () => {
+        addAuditLog("MODIFY_USER", "Administración", `${newStatus === "suspended" ? "Suspensión" : "Activación"} de usuario: ${user.email}`);
+        toast.success(`Usuario ${user.name} ${newStatus === "suspended" ? "suspendido" : "activado"}`);
+      }),
+    });
   };
 
   /* ─── Delete User ─── */
   const handleDeleteUser = () => {
     if (!deleteTarget) return;
-    eliminarUsuarioMut.mutate({ id: deleteTarget.id });
-    setRoles(prev => prev.map(r => r.name === deleteTarget.role ? { ...r, userCount: Math.max(0, r.userCount - 1) } : r));
-    addAuditLog("DELETE_USER", "Administración", `Usuario eliminado: ${deleteTarget.email}`);
-    toast.success(`Usuario "${deleteTarget.name}" eliminado`);
+    if (!esReal) { toast.info("Vista de demostración — inicia sesión para modificar usuarios."); setShowDeleteConfirm(false); setDeleteTarget(null); return; }
+    eliminarUsuarioMut.mutate({ id: deleteTarget.id }, {
+      onSuccess: d => okOrUsuario(d, () => {
+        addAuditLog("DELETE_USER", "Administración", `Usuario eliminado: ${deleteTarget.email}`);
+        toast.success(`Usuario "${deleteTarget.name}" eliminado`);
+      }),
+    });
     setShowDeleteConfirm(false);
     setDeleteTarget(null);
   };
@@ -317,17 +349,27 @@ export default function AdminTab() {
   /* ─── Edit User ─── */
   const handleEditUser = () => {
     if (!editingUser) return;
+    if (!esReal) { toast.info("Vista de demostración — inicia sesión para modificar usuarios."); setShowEditUserDialog(false); setEditingUser(null); return; }
     actualizarUsuarioMut.mutate({
       id: editingUser.id,
       name: editingUser.name,
       department: editingUser.department,
       institutionalRole: (ROLE_LABEL_TO_SLUG[editingUser.role] || "operador") as any,
       status: editingUser.status,
+    }, {
+      onSuccess: d => okOrUsuario(d, () => {
+        addAuditLog("MODIFY_USER", "Administración", `Usuario editado: ${editingUser.email}`);
+        toast.success(`Usuario "${editingUser.name}" actualizado`);
+      }),
     });
-    addAuditLog("MODIFY_USER", "Administración", `Usuario editado: ${editingUser.email}`);
-    toast.success(`Usuario "${editingUser.name}" actualizado`);
+    if (resetPasswordValue.length >= 8) {
+      resetPasswordMut.mutate({ id: editingUser.id, password: resetPasswordValue }, {
+        onSuccess: d => okOrUsuario(d, () => toast.success("Contraseña actualizada")),
+      });
+    }
     setShowEditUserDialog(false);
     setEditingUser(null);
+    setResetPasswordValue("");
   };
 
   /* ─── Duplicate Role ─── */
@@ -373,7 +415,8 @@ export default function AdminTab() {
       <div className="px-card flex items-center gap-2 flex-wrap" style={{ padding: "var(--px-2) var(--px-4)", flexShrink: 0 }}>
         <Shield size={13} style={{ color: "var(--px-brand)" }} />
         <span style={{ fontFamily: "var(--px-display)", fontSize: "var(--px-text-sm)", fontWeight: 700, color: "var(--px-text)" }}>ADMINISTRACIÓN</span>
-        <OriginBadge real={esReal} />
+        {/* Roles/Auditoría/Actividad son 100% mock local — el badge solo refleja "real" en Usuarios, la única sub-tab con datos de BD */}
+        <OriginBadge real={activeSubTab === "usuarios" ? esReal : false} />
         <div className="hidden sm:flex items-center gap-3 ml-2">
           <span style={{ fontFamily: "var(--px-mono)", fontSize: "var(--px-text-xs)", color: "var(--px-ok)" }}><span style={{ fontWeight: 700 }}>{stats.activeUsers}</span> activos</span>
           <span style={{ fontFamily: "var(--px-mono)", fontSize: "var(--px-text-xs)", color: "var(--px-text-faint)" }}>{stats.todayActions} acciones hoy</span>
@@ -705,6 +748,10 @@ export default function AdminTab() {
                   <option value="inactive">Inactivo</option>
                 </select>
               </div>
+              <div>
+                <label className="px-label">CONTRASEÑA INICIAL *</label>
+                <input type="password" value={newUser.password} onChange={e => setNewUser(p => ({ ...p, password: e.target.value }))} className="px-input mt-1" placeholder="Mínimo 8 caracteres" />
+              </div>
             </div>
 
             {/* ─── Identification Section (Policía/Comandante) ─── */}
@@ -792,6 +839,10 @@ export default function AdminTab() {
                 <select value={editingUser.role} onChange={e => setEditingUser({ ...editingUser, role: e.target.value })} className="px-input mt-1">
                   {roles.map(r => <option key={r.id} value={r.name}>{r.name}</option>)}
                 </select>
+              </div>
+              <div>
+                <label className="px-label">RESETEAR CONTRASEÑA (OPCIONAL)</label>
+                <input type="password" value={resetPasswordValue} onChange={e => setResetPasswordValue(e.target.value)} className="px-input mt-1" placeholder="Dejar vacío para no cambiar" />
               </div>
             </div>
             <div className="flex gap-2" style={{ marginTop: "var(--px-5)" }}>

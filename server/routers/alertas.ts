@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { publicProcedure, router } from "../_core/infra/trpc";
+import { publicProcedure, protectedProcedure, router } from "../_core/infra/trpc";
 import { getDb } from "../config/db";
 import { alertas } from "../../drizzle/schema";
 import { eq, desc, gte, lte, and, sql } from "drizzle-orm";
@@ -33,7 +33,7 @@ export const alertasRouter = router({
       }
     }),
 
-  eliminar: publicProcedure
+  eliminar: protectedProcedure
     .input(z.object({ id: z.number() }))
     .mutation(async ({ input }) => {
       const db = await getDb();
@@ -42,7 +42,7 @@ export const alertasRouter = router({
       return { success: true };
     }),
 
-  crear: publicProcedure
+  crear: protectedProcedure
     .input(z.object({
       nivel: z.enum(["critical", "warning", "info"]),
       titulo: z.string().min(1),
@@ -71,7 +71,7 @@ export const alertasRouter = router({
       }
     }),
 
-  reconocer: publicProcedure
+  reconocer: protectedProcedure
     .input(z.object({ id: z.number() }))
     .mutation(async ({ input }) => {
       const db = await getDb();
@@ -80,7 +80,7 @@ export const alertasRouter = router({
       return { success: true };
     }),
 
-  escalar: publicProcedure
+  escalar: protectedProcedure
     .input(z.object({ id: z.number() }))
     .mutation(async ({ input }) => {
       const db = await getDb();
@@ -89,7 +89,7 @@ export const alertasRouter = router({
       return { success: true };
     }),
 
-  despachar: publicProcedure
+  despachar: protectedProcedure
     .input(z.object({ id: z.number(), cantidad: z.number().default(2) }))
     .mutation(async ({ input }) => {
       const db = await getDb();
@@ -100,7 +100,7 @@ export const alertasRouter = router({
       return { success: true };
     }),
 
-  resolver: publicProcedure
+  resolver: protectedProcedure
     .input(z.object({ id: z.number() }))
     .mutation(async ({ input }) => {
       const db = await getDb();

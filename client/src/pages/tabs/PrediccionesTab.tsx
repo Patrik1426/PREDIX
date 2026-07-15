@@ -21,8 +21,6 @@ function riskColor(r: string) {
 export default function PrediccionesTab() {
   const [selectedMunicipio, setSelectedMunicipio] = useState("");
   const [meses, setMeses] = useState(3);
-  const [modelReady, setModelReady] = useState(false);
-  const [modelProgress, setModelProgress] = useState(0);
   const [isGenerating, setIsGenerating] = useState(false);
   const [lockedMuni, setLockedMuni] = useState("");
   const [lockedMeses, setLockedMeses] = useState(3);
@@ -42,11 +40,6 @@ export default function PrediccionesTab() {
     { enabled: !!lockedMuni && generationKey > 0 }
   );
 
-  useEffect(() => {
-    const t = setInterval(() => setModelProgress(p => { if (p >= 100) { clearInterval(t); setModelReady(true); return 100; } return p + 2; }), 30);
-    return () => clearInterval(t);
-  }, []);
-
   useEffect(() => { if (municipios.length > 0 && !selectedMunicipio) setSelectedMunicipio(municipios[0]); }, [municipios, selectedMunicipio]);
 
   const pred = prediccionData?.data;
@@ -63,7 +56,6 @@ export default function PrediccionesTab() {
 
   const handleGenerar = () => {
     if (!selectedMunicipio) { toast.error("Selecciona un municipio"); return; }
-    if (!modelReady) { toast.error("Modelo cargando, espera"); return; }
     setIsGenerating(true);
     setLockedMuni(selectedMunicipio);
     setLockedMeses(meses);
@@ -149,7 +141,7 @@ export default function PrediccionesTab() {
           ))}
         </div>
         <div className="flex gap-2">
-          <button onClick={handleGenerar} disabled={isGenerating || loadingPred || !modelReady}
+          <button onClick={handleGenerar} disabled={isGenerating || loadingPred}
             className="px-btn px-btn-primary flex-1" style={{ minHeight: 40 }}>
             {isGenerating || loadingPred ? <><Loader size={14} className="animate-spin" /> Generando...</> : <><Brain size={14} /> Generar</>}
           </button>
@@ -239,11 +231,10 @@ export default function PrediccionesTab() {
           </div>
 
           {/* Stats — 3 cards horizontales */}
-          <div className="grid grid-cols-3 gap-2" style={{ marginBottom: "var(--px-4)" }}>
+          <div className="grid grid-cols-2 gap-2" style={{ marginBottom: "var(--px-4)" }}>
             {[
               { v: "125", l: "Municipios", c: "var(--px-brand)", icon: <BarChart3 size={14} /> },
               { v: "10 años", l: "Histórico", c: "var(--px-text-muted)", icon: <Activity size={14} /> },
-              { v: "82.3%", l: "Precisión", c: "var(--px-ok)", icon: <TrendingUp size={14} /> },
             ].map(s => (
               <div key={s.l} className="rounded-md text-center" style={{ padding: "var(--px-3)", background: "color-mix(in srgb, var(--px-brand) 4%, transparent)", border: "1px solid var(--px-hairline)" }}>
                 <div style={{ color: s.c, marginBottom: 4 }}>{s.icon}</div>
@@ -284,18 +275,6 @@ export default function PrediccionesTab() {
         <span style={{ fontFamily: "var(--px-display)", fontSize: "var(--px-text-sm)", fontWeight: 700, color: "var(--px-text)" }}>ATENEA-ML</span>
         <OriginBadge real={summary.origen === "real"} />
         <div className="flex items-center gap-2 ml-auto">
-          {!modelReady ? (
-            <div className="flex items-center gap-2" style={{ minWidth: 100 }}>
-              <div className="flex-1 rounded-full overflow-hidden" style={{ height: 3, background: "var(--px-hairline)" }}>
-                <div className="h-full rounded-full" style={{ width: `${modelProgress}%`, background: "var(--px-brand)", transition: "width 0.1s" }} />
-              </div>
-              <span style={{ fontFamily: "var(--px-mono)", fontSize: "var(--px-text-xs)", color: "var(--px-brand)" }}>{modelProgress}%</span>
-            </div>
-          ) : (
-            <span className="flex items-center gap-1" style={{ fontFamily: "var(--px-mono)", fontSize: "var(--px-text-xs)", color: "var(--px-ok)" }}>
-              <Activity size={11} /> 82.3%
-            </span>
-          )}
           {pred && <button onClick={handleExportCSV} className="px-btn px-btn-secondary" style={{ padding: "3px 8px", fontSize: "var(--px-text-xs)" }}><Download size={11} /> CSV</button>}
         </div>
       </div>

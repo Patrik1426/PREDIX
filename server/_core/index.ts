@@ -127,8 +127,6 @@ async function startServer() {
     console.log(`Server running on http://localhost:${port}/`);
     // Start SESNSP data sync scheduler
     startSyncScheduler();
-    // Start realtime event simulator
-    eventBus.startSimulator();
   });
 }
 

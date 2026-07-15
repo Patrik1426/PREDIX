@@ -99,3 +99,41 @@ describe("incidentes mutations — modo degradado (sin BD), con sesión", () => 
     expect(result.success).toBe(false); // degrada por BD, no por validación
   });
 });
+
+describe("incidentes mutations — permisos por rol", () => {
+  function createCallerWithRole(institutionalRole: AuthenticatedUser["institutionalRole"]) {
+    return appRouter.createCaller(createContext({ ...AUTH_USER, institutionalRole }));
+  }
+
+  it("consulta no puede crear incidentes (canEdit:0)", async () => {
+    const caller = createCallerWithRole("consulta");
+    try {
+      await caller.incidentes.crear({ tipo: "Robo", municipio: "Toluca", narrativa: "x", prioridad: "media" });
+      throw new Error("esperaba que rechazara");
+    } catch (e) {
+      expect((e as TRPCError).code).toBe("FORBIDDEN");
+    }
+  });
+
+  it("operador puede crear incidentes (incidentes.canEdit:1)", async () => {
+    const caller = createCallerWithRole("operador");
+    const result = await caller.incidentes.crear({ tipo: "Robo", municipio: "Toluca", narrativa: "x", prioridad: "media" });
+    expect(result.success).toBe(false); // degrada por BD en test, no rechaza por permiso
+  });
+
+  it("operador no puede eliminar incidentes (incidentes.canDelete:0)", async () => {
+    const caller = createCallerWithRole("operador");
+    try {
+      await caller.incidentes.eliminar({ id: 1 });
+      throw new Error("esperaba que rechazara");
+    } catch (e) {
+      expect((e as TRPCError).code).toBe("FORBIDDEN");
+    }
+  });
+
+  it("admin puede eliminar incidentes (canDelete:1)", async () => {
+    const caller = createCallerWithRole("admin");
+    const result = await caller.incidentes.eliminar({ id: 1 });
+    expect(result.success).toBe(false); // degrada por BD en test, no rechaza por permiso
+  });
+});

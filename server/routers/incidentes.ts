@@ -1,7 +1,8 @@
 import { z } from "zod";
-import { publicProcedure, protectedProcedure, router } from "../_core/infra/trpc";
+import { publicProcedure, requirePermission, router } from "../_core/infra/trpc";
 import { getDb } from "../config/db";
 import { incidentes } from "../../drizzle/schema";
+import { MODULES } from "../_core/infra/permissions";
 import { eq, desc, gte, lte, and } from "drizzle-orm";
 import { logger } from "../_core/logger";
 
@@ -53,7 +54,7 @@ export const incidentesRouter = router({
       }
     }),
 
-  crear: protectedProcedure
+  crear: requirePermission(MODULES.INCIDENTES, "canEdit")
     .input(z.object({
       tipo: z.string().min(1),
       municipio: z.string().min(1),
@@ -109,7 +110,7 @@ export const incidentesRouter = router({
       return { success: false, message: "Error al crear incidente" };
     }),
 
-  actualizar: protectedProcedure
+  actualizar: requirePermission(MODULES.INCIDENTES, "canEdit")
     .input(z.object({
       id: z.number(),
       estado: estadoSchema.optional(),
@@ -133,7 +134,7 @@ export const incidentesRouter = router({
       }
     }),
 
-  eliminar: protectedProcedure
+  eliminar: requirePermission(MODULES.INCIDENTES, "canDelete")
     .input(z.object({ id: z.number() }))
     .mutation(async ({ input }) => {
       const db = await getDb();

@@ -4,7 +4,7 @@
  */
 
 import { z } from "zod";
-import { publicProcedure, router } from "../_core/infra/trpc";
+import { publicProcedure, protectedProcedure, router } from "../_core/infra/trpc";
 import { getIncidenciaByMunicipio, getIncidenciaEstatal, getIncidenciaMapa, getIncidenciaOrigen, syncSesnspData } from "../data/sesnsp";
 import { addIncidentAttachment, getIncidentAttachments, deleteIncidentAttachment, getDb } from "../config/db";
 import { storagePut } from "../config/storage";
@@ -49,7 +49,7 @@ export const incidenciaRouter = router({
    * Trigger manual sync of SESNSP data
    * (Protected endpoint for admin use)
    */
-  syncNow: publicProcedure.mutation(async () => {
+  syncNow: protectedProcedure.mutation(async () => {
     try {
       await syncSesnspData();
       return { success: true, message: "Sync completed" };

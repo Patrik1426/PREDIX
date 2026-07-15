@@ -6,6 +6,7 @@ import { MODULES } from "../_core/infra/permissions";
 import { eq, desc, gte, lte, and } from "drizzle-orm";
 import { logger } from "../_core/logger";
 import { logAudit } from "../config/auditLog";
+import { emitEvent } from "../services/realtimeService";
 
 const estadoSchema = z.enum(["en_proceso", "cerrado", "investigacion"]);
 const prioridadSchema = z.enum(["baja", "media", "alta", "critica"]);
@@ -99,6 +100,13 @@ export const incidentesRouter = router({
             details: `${input.tipo} (${input.municipio})`,
             ip: ctx.req.ip || "unknown",
           });
+          emitEvent({
+            type: "nuevo_incidente",
+            severity: input.prioridad === "critica" ? "critical" : input.prioridad === "alta" ? "warning" : "info",
+            title: `Nuevo incidente: ${input.tipo}`,
+            message: `${input.municipio} — folio ${folio}`,
+            data: { folio, municipio: input.municipio },
+          });
           return { success: true, message: "Incidente creado", folio };
         } catch (e) {
           const isDuplicateFolio = (e as { code?: string; errno?: number })?.code === "ER_DUP_ENTRY"
@@ -142,6 +150,13 @@ export const incidentesRouter = router({
           module: "incidentes",
           resourceId: String(id),
           ip: ctx.req.ip || "unknown",
+        });
+        emitEvent({
+          type: "incidente_actualizado",
+          severity: "info",
+          title: "Incidente actualizado",
+          message: `Incidente #${id} — actualización registrada`,
+          data: { incidenteId: id },
         });
         return { success: true };
       } catch (e) {

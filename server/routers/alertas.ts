@@ -6,6 +6,7 @@ import { MODULES } from "../_core/infra/permissions";
 import { eq, desc, gte, lte, and, sql } from "drizzle-orm";
 import { logger } from "../_core/logger";
 import { logAudit } from "../config/auditLog";
+import { emitEvent } from "../services/realtimeService";
 
 export const alertasRouter = router({
   listar: publicProcedure
@@ -81,6 +82,13 @@ export const alertasRouter = router({
           details: `${input.titulo} (${input.municipio})`,
           ip: ctx.req.ip || "unknown",
         });
+        emitEvent({
+          type: "nueva_alerta",
+          severity: input.nivel === "critical" ? "critical" : input.nivel === "warning" ? "warning" : "info",
+          title: `Nueva alerta: ${input.titulo}`,
+          message: `${input.municipio} — nivel ${input.nivel}`,
+          data: { alertaId: result[0].insertId, municipio: input.municipio },
+        });
         return { success: true, message: "Alerta creada" };
       } catch (e) {
         logger.error("[Alertas] Error creating:", e);
@@ -101,6 +109,13 @@ export const alertasRouter = router({
         resourceId: String(input.id),
         ip: ctx.req.ip || "unknown",
       });
+      emitEvent({
+        type: "alerta_actualizada",
+        severity: "info",
+        title: "Alerta reconocida",
+        message: `Alerta #${input.id} reconocida`,
+        data: { alertaId: input.id },
+      });
       return { success: true };
     }),
 
@@ -116,6 +131,13 @@ export const alertasRouter = router({
         module: "alertas",
         resourceId: String(input.id),
         ip: ctx.req.ip || "unknown",
+      });
+      emitEvent({
+        type: "alerta_actualizada",
+        severity: "critical",
+        title: "Alerta escalada",
+        message: `Alerta #${input.id} escalada a crítica`,
+        data: { alertaId: input.id },
       });
       return { success: true };
     }),
@@ -135,6 +157,13 @@ export const alertasRouter = router({
         resourceId: String(input.id),
         ip: ctx.req.ip || "unknown",
       });
+      emitEvent({
+        type: "alerta_actualizada",
+        severity: "info",
+        title: "Unidades despachadas",
+        message: `Alerta #${input.id} — ${input.cantidad} unidad(es) despachada(s)`,
+        data: { alertaId: input.id },
+      });
       return { success: true };
     }),
 
@@ -150,6 +179,13 @@ export const alertasRouter = router({
         module: "alertas",
         resourceId: String(input.id),
         ip: ctx.req.ip || "unknown",
+      });
+      emitEvent({
+        type: "alerta_actualizada",
+        severity: "success",
+        title: "Alerta resuelta",
+        message: `Alerta #${input.id} marcada como resuelta`,
+        data: { alertaId: input.id },
       });
       return { success: true };
     }),

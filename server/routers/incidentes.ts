@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { publicProcedure, protectedProcedure, requirePermission, router } from "../_core/infra/trpc";
+import { publicProcedure, requirePermission, router } from "../_core/infra/trpc";
 import { getDb } from "../config/db";
 import { incidentes } from "../../drizzle/schema";
 import { MODULES } from "../_core/infra/permissions";
@@ -10,6 +10,16 @@ import { emitEvent } from "../services/realtimeService";
 
 const estadoSchema = z.enum(["en_proceso", "cerrado", "investigacion"]);
 const prioridadSchema = z.enum(["baja", "media", "alta", "critica"]);
+
+// CSV formula injection (CWE-1236): si un campo de texto libre (narrativa,
+// personal, etc.) empieza con =, +, -, @ o tab, Excel/Sheets lo interpreta
+// como fórmula al abrir el CSV — puede ejecutar código o exfiltrar datos.
+// Se neutraliza anteponiendo un apóstrofo, el mitigation estándar de OWASP.
+export function csvSafe(value: string): string {
+  const dangerous = /^[=+\-@\t]/;
+  const safe = dangerous.test(value) ? `'${value}` : value;
+  return `"${safe.replace(/"/g, '""')}"`;
+}
 
 async function nextFolio(db: NonNullable<Awaited<ReturnType<typeof getDb>>>): Promise<string> {
   const year = new Date().getFullYear();
@@ -186,7 +196,7 @@ export const incidentesRouter = router({
       }
     }),
 
-  exportCsv: protectedProcedure
+  exportCsv: requirePermission(MODULES.INCIDENTES, "canExport")
     .input(z.object({
       desde: z.string().optional(),
       hasta: z.string().optional(),
@@ -210,16 +220,16 @@ export const incidentesRouter = router({
           .orderBy(desc(incidentes.createdAt))
           .limit(2000);
         const csvRows = rows.map(r => [
-          r.folio,
-          `"${r.tipo.replace(/"/g, '""')}"`,
-          `"${r.municipio.replace(/"/g, '""')}"`,
-          `"${(r.colonia || "").replace(/"/g, '""')}"`,
+          csvSafe(r.folio),
+          csvSafe(r.tipo),
+          csvSafe(r.municipio),
+          csvSafe(r.colonia || ""),
           r.estado,
           r.prioridad,
-          `"${(r.personal || "").replace(/"/g, '""')}"`,
+          csvSafe(r.personal || ""),
           r.atendido ? "Sí" : "No",
           new Date(r.createdAt).toLocaleString("es-MX"),
-          `"${r.narrativa.replace(/"/g, '""')}"`,
+          csvSafe(r.narrativa),
         ].join(","));
         return {
           csv: [headers.join(","), ...csvRows].join("\n"),

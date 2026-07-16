@@ -11,6 +11,8 @@ import { createContext } from "./auth/context";
 import { serveStatic, setupVite } from "./infra/vite";
 import { startSyncScheduler } from "../services/syncScheduler";
 import { sseHandler, eventBus } from "../services/realtimeService";
+import { sdk } from "./sdk";
+import { resolveAttachmentPath } from "../config/storage";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -101,6 +103,25 @@ async function startServer() {
       clients: eventBus.getClientCount(),
     });
   });
+
+  // Descarga de adjuntos de incidentes — requiere sesión válida, sirve
+  // desde disco local (ver server/config/storage.ts).
+  app.get("/api/attachments/file/:key(*)", async (req, res) => {
+    const user = await sdk.authenticateRequest(req).catch(() => null);
+    if (!user) return res.status(401).json({ error: "UNAUTHORIZED" });
+
+    let filePath: string;
+    try {
+      filePath = resolveAttachmentPath(req.params.key);
+    } catch {
+      return res.status(400).json({ error: "INVALID_PATH" });
+    }
+
+    res.sendFile(filePath, err => {
+      if (err) res.status(404).json({ error: "NOT_FOUND" });
+    });
+  });
+
   // tRPC API
   app.use(
     "/api/trpc",

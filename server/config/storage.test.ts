@@ -56,3 +56,21 @@ describe("path traversal — storagePut/storageDelete rechazan escapes", () => {
     await expect(storageDelete("../../../etc/passwd")).rejects.toThrow(/escapes/);
   });
 });
+
+describe("rutas absolutas — rechazadas antes de resolver (Windows y POSIX)", () => {
+  it("rechaza una ruta con letra de unidad de Windows (path.resolve la trataría como absoluta, ignorando UPLOADS_DIR)", () => {
+    expect(() => resolveAttachmentPath("C:\\Windows\\System32\\drivers\\etc\\hosts")).toThrow(/must be relative/);
+  });
+
+  it("rechaza una ruta UNC de Windows", () => {
+    expect(() => resolveAttachmentPath("\\\\server\\share\\secreto.txt")).toThrow(/must be relative/);
+  });
+
+  it("rechaza una ruta absoluta POSIX", () => {
+    expect(() => resolveAttachmentPath("/etc/passwd")).toThrow(/must be relative/);
+  });
+
+  it("storagePut rechaza una key con letra de unidad", async () => {
+    await expect(storagePut("C:\\temp\\evil.txt", Buffer.from("x"))).rejects.toThrow(/must be relative/);
+  });
+});

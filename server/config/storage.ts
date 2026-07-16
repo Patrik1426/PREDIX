@@ -14,12 +14,20 @@ function resolveUploadsDir(): string {
 /**
  * Resuelve relKey dentro de UPLOADS_DIR y lanza si el resultado escapa del
  * directorio (ej. relKey con "../../"). fileName/incidentId vienen de input
- * de usuario — sin este chequeo, un ".." bien puesto permite escribir,
- * leer o borrar cualquier archivo del sistema (path traversal).
+ * de usuario — sin este chequeo, un ".." bien puesto permite escribir, leer
+ * o borrar cualquier archivo del sistema (path traversal).
+ *
+ * Rechaza rutas absolutas explícitamente ANTES de resolver: path.resolve(base, x)
+ * descarta `base` por completo si `x` ya es absoluto — en Windows eso incluye
+ * letras de unidad ("C:\...") y rutas UNC ("\\server\share"), que un simple
+ * `replace(/^\/+/, "")` (solo quita "/" al inicio) no detecta ni neutraliza.
  */
 function containPath(relKey: string): string {
+  if (path.win32.isAbsolute(relKey) || path.posix.isAbsolute(relKey)) {
+    throw new Error(`Invalid path: "${relKey}" must be relative`);
+  }
   const uploadsDir = resolveUploadsDir();
-  const resolved = path.resolve(uploadsDir, relKey.replace(/^\/+/, ""));
+  const resolved = path.resolve(uploadsDir, relKey);
   const boundary = uploadsDir.endsWith(path.sep) ? uploadsDir : uploadsDir + path.sep;
   if (resolved !== uploadsDir && !resolved.startsWith(boundary)) {
     throw new Error(`Invalid path: "${relKey}" escapes the uploads directory`);
@@ -36,11 +44,10 @@ export async function storagePut(
   data: Buffer,
   _contentType = "application/octet-stream"
 ): Promise<{ key: string; url: string }> {
-  const key = relKey.replace(/^\/+/, "");
-  const fullPath = containPath(key);
+  const fullPath = containPath(relKey);
   await fs.mkdir(path.dirname(fullPath), { recursive: true });
   await fs.writeFile(fullPath, data);
-  return { key, url: `/api/attachments/file/${key}` };
+  return { key: relKey, url: `/api/attachments/file/${relKey}` };
 }
 
 export async function storageDelete(relKey: string): Promise<void> {

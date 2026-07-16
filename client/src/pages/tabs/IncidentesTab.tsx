@@ -8,7 +8,6 @@ import { useState, useMemo, useEffect } from "react";
 import { INCIDENTES_RECIENTES, DATOS_MENSUALES } from "@/data/securityData";
 import { Filter, Clock, MapPin, FileText, TrendingUp, ChevronDown, ArrowLeft, Plus, Trash2, CheckCircle, Search } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line } from "recharts";
-import { ExportIncidenciaDialog } from "@/components/ExportIncidenciaDialog";
 import { AdvancedIncidentFilter, type IncidentFilterState } from "@/components/AdvancedIncidentFilter";
 import { useIncidentSearch } from "@/hooks/useIncidentSearch";
 import IncidentDetailModal from "@/components/IncidentDetailModal";
@@ -146,6 +145,25 @@ export default function IncidentesTab() {
   const actualizarMut = trpc.incidentes.actualizar.useMutation({ onSuccess: d => okOr(d, () => toast.success("Incidente actualizado.")), onError: onMutError });
   const eliminarMut = trpc.incidentes.eliminar.useMutation({ onSuccess: d => okOr(d, () => { toast.success("Incidente eliminado."); setSelId(""); }), onError: onMutError });
 
+  const exportQuery = trpc.incidentes.exportCsv.useQuery({}, { enabled: false });
+  const handleExportarIncidentes = async () => {
+    const result = await exportQuery.refetch();
+    if (result.error) {
+      const code = result.error instanceof TRPCClientError ? result.error.data?.code : undefined;
+      toast.error(code === "UNAUTHORIZED" ? "Requiere sesión iniciada" : "No se pudo exportar");
+      return;
+    }
+    if (!result.data?.csv) return;
+    const blob = new Blob([result.data.csv], { type: "text/csv;charset=utf-8" });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = result.data.filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    toast.success(`${result.data.recordCount} incidente(s) exportado(s)`);
+  };
+
   // `_dbId` puede ser 0 en una fila real (PK reiniciada) — nunca usar `!dbId`.
   const getDbId = (i: IncidenteUI | undefined) => i?._dbId;
 
@@ -219,7 +237,9 @@ export default function IncidentesTab() {
             <Filter size={11} className="inline mr-1" />FILTROS
             <ChevronDown size={11} className="inline ml-1" style={{ transform: showFilters ? "rotate(180deg)" : "none", transition: "transform 0.2s" }} />
           </button>
-          <ExportIncidenciaDialog />
+          <button onClick={handleExportarIncidentes} className="px-btn px-btn-secondary" style={{ padding: "5px 10px", fontSize: "var(--px-text-xs)" }}>
+            <FileText size={12} /> EXPORTAR
+          </button>
           <button onClick={() => setShowNewDialog(true)} className="px-btn px-btn-primary" style={{ padding: "5px 10px", fontSize: "var(--px-text-xs)" }}>
             <Plus size={12} /> NUEVO
           </button>

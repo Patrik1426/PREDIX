@@ -8,6 +8,7 @@ import { Download, Trash2, FileImage, File, Loader, AlertCircle } from "lucide-r
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import ImageGallery from "./ImageGallery";
+import { useAuth } from "@/_core/hooks/useAuth";
 
 interface Attachment {
   id: number;
@@ -57,10 +58,11 @@ export default function AttachmentList({ incidentId, onRefresh }: AttachmentList
   const [isLoading, setIsLoading] = useState(true);
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [viewMode, setViewMode] = useState<'gallery' | 'list'>('gallery');
+  const { isAuthenticated, loading: authLoading } = useAuth();
 
   const { data: attachmentsData, isLoading: isQueryLoading } = trpc.incidencia.getAttachments.useQuery(
     { incidentId },
-    { enabled: !!incidentId }
+    { enabled: !!incidentId && isAuthenticated }
   );
 
   const deleteMutation = trpc.incidencia.deleteAttachment.useMutation();
@@ -101,6 +103,15 @@ export default function AttachmentList({ incidentId, onRefresh }: AttachmentList
       setDeletingId(null);
     }
   };
+
+  if (!authLoading && !isAuthenticated) {
+    return (
+      <div className="py-8 text-center text-gray-400">
+        <AlertCircle className="w-8 h-8 mx-auto mb-2 opacity-50" />
+        <p className="text-sm">Inicia sesión para ver los archivos adjuntos</p>
+      </div>
+    );
+  }
 
   if (isLoading || isQueryLoading) {
     return (
@@ -227,7 +238,7 @@ export default function AttachmentList({ incidentId, onRefresh }: AttachmentList
       {/* Info message */}
       <div className="flex gap-2 p-2 bg-blue-500/10 border border-blue-500/20 rounded text-xs text-blue-300 mt-3">
         <AlertCircle className="w-3 h-3 shrink-0 mt-0.5" />
-        <p>Los archivos se almacenan de forma segura en S3 y son accesibles solo para este incidente.</p>
+        <p>Los archivos se almacenan de forma local en el servidor y son accesibles solo para este incidente, con sesión iniciada.</p>
       </div>
     </div>
   );

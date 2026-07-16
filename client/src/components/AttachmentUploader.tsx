@@ -7,6 +7,7 @@ import { useState } from "react";
 import { Upload, X, File, FileImage, AlertCircle, Loader } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
+import { useAuth } from "@/_core/hooks/useAuth";
 
 interface AttachmentUploaderProps {
   incidentId: string;
@@ -35,6 +36,7 @@ export default function AttachmentUploader({ incidentId, onUploadSuccess }: Atta
   const [isUploading, setIsUploading] = useState(false);
 
   const uploadMutation = trpc.incidencia.uploadAttachment.useMutation();
+  const { isAuthenticated } = useAuth();
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
@@ -118,6 +120,15 @@ export default function AttachmentUploader({ incidentId, onUploadSuccess }: Atta
       setIsUploading(false);
     }
   };
+
+  if (!isAuthenticated) {
+    return (
+      <div className="py-8 text-center text-gray-400">
+        <AlertCircle className="w-8 h-8 mx-auto mb-2 opacity-50" />
+        <p className="text-sm">Inicia sesión para cargar archivos</p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">
@@ -215,7 +226,7 @@ export default function AttachmentUploader({ incidentId, onUploadSuccess }: Atta
       {/* Info message */}
       <div className="flex gap-2 p-3 bg-blue-500/10 border border-blue-500/30 rounded text-xs text-blue-300">
         <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-        <p>Los archivos se almacenan de forma segura en S3 y se asocian permanentemente a este incidente.</p>
+        <p>Los archivos se almacenan de forma local en el servidor y se asocian permanentemente a este incidente.</p>
       </div>
     </div>
   );

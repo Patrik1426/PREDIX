@@ -10,6 +10,7 @@ const envSchema = z.object({
   BUILT_IN_FORGE_API_KEY: z.string().optional().default(""),
   NODE_ENV: z.string().optional().default("development"),
   PORT: z.string().optional().default("3000"),
+  UPLOADS_DIR: z.string().optional().default("./data/uploads"),
   VITE_FRONTEND_URL: z.string().optional().default(""),
 });
 
@@ -42,5 +43,6 @@ export const ENV = {
   forgeApiUrl: validated.BUILT_IN_FORGE_API_URL,
   forgeApiKey: validated.BUILT_IN_FORGE_API_KEY,
   port: parseInt(validated.PORT),
+  uploadsDir: validated.UPLOADS_DIR,
   frontendUrl: validated.VITE_FRONTEND_URL,
 };

@@ -117,6 +117,14 @@ async function startServer() {
       return res.status(400).json({ error: "INVALID_PATH" });
     }
 
+    // Un adjunto puede ser cualquier archivo que un usuario haya subido (ej.
+    // un .html o .svg con <script> disfrazado de "evidencia"). Sin estas
+    // cabeceras, el navegador lo renderizaría inline en el mismo origen que
+    // la sesión autenticada — XSS almacenado vía carga de archivos.
+    res.setHeader("Content-Disposition", "attachment");
+    res.setHeader("X-Content-Type-Options", "nosniff");
+    res.setHeader("Content-Security-Policy", "default-src 'none'");
+
     res.sendFile(filePath, err => {
       if (err) res.status(404).json({ error: "NOT_FOUND" });
     });

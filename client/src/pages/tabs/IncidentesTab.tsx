@@ -71,7 +71,7 @@ export default function IncidentesTab() {
   const [showModal, setShowModal] = useState(false);
   const [showNewDialog, setShowNewDialog] = useState(false);
   const [filters, setFilters] = useState<IncidentFilterState>({ searchText: "", priority: [], status: [], municipios: [], crimeTypes: [] });
-  const [newIncidente, setNewIncidente] = useState({ tipo: "", municipio: "", colonia: "", narrativa: "", prioridad: "media" as string });
+  const [newIncidente, setNewIncidente] = useState({ tipo: "", municipio: "", colonia: "", narrativa: "", prioridad: "media" as string, personal: "" });
 
   const { data: municipiosData } = trpc.predicciones.obtenerMunicipios.useQuery();
   const municipios125 = municipiosData?.data || [];
@@ -138,7 +138,7 @@ export default function IncidentesTab() {
     onSuccess: d => okOr(d, () => {
       toast.success("Incidente creado.");
       setShowNewDialog(false);
-      setNewIncidente({ tipo: "", municipio: "", colonia: "", narrativa: "", prioridad: "media" });
+      setNewIncidente({ tipo: "", municipio: "", colonia: "", narrativa: "", prioridad: "media", personal: "" });
     }),
     onError: onMutError,
   });
@@ -178,6 +178,7 @@ export default function IncidentesTab() {
       colonia: newIncidente.colonia || undefined,
       narrativa: newIncidente.narrativa,
       prioridad: PRIORIDAD_LABEL_TO_DB[newIncidente.prioridad] || "media",
+      personal: newIncidente.personal || undefined,
     });
     // Dialog/form se limpian solo si crearMut tiene éxito (ver onSuccess arriba) —
     // así no se pierde lo escrito si la mutación falla (ej. sesión expirada).
@@ -459,6 +460,10 @@ export default function IncidentesTab() {
               <div>
                 <label className="px-label">NARRATIVA *</label>
                 <textarea value={newIncidente.narrativa} onChange={e => setNewIncidente(p => ({ ...p, narrativa: e.target.value }))} placeholder="Descripción detallada del hecho..." rows={3} className="px-input" style={{ resize: "vertical" }} />
+              </div>
+              <div>
+                <label className="px-label">PERSONAL ASIGNADO</label>
+                <input value={newIncidente.personal} onChange={e => setNewIncidente(p => ({ ...p, personal: e.target.value }))} placeholder="Ej: Patrulla P-4521" className="px-input" />
               </div>
             </div>
 

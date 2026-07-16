@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { publicProcedure, requirePermission, router } from "../_core/infra/trpc";
+import { publicProcedure, protectedProcedure, requirePermission, router } from "../_core/infra/trpc";
 import { getDb } from "../config/db";
 import { incidentes } from "../../drizzle/schema";
 import { MODULES } from "../_core/infra/permissions";
@@ -183,6 +183,52 @@ export const incidentesRouter = router({
       } catch (e) {
         logger.error("[Incidentes] Error deleting:", e);
         return { success: false };
+      }
+    }),
+
+  exportCsv: protectedProcedure
+    .input(z.object({
+      desde: z.string().optional(),
+      hasta: z.string().optional(),
+      estado: estadoSchema.optional(),
+      municipio: z.string().optional(),
+    }).optional())
+    .query(async ({ input }) => {
+      const db = await getDb();
+      const headers = ["Folio", "Tipo", "Municipio", "Colonia", "Estado", "Prioridad", "Personal", "Atendido", "Fecha", "Narrativa"];
+      if (!db) {
+        return { csv: headers.join(","), filename: `incidentes-${new Date().toISOString().split("T")[0]}.csv`, recordCount: 0 };
+      }
+      try {
+        const conditions = [];
+        if (input?.desde) conditions.push(gte(incidentes.createdAt, new Date(`${input.desde}T00:00:00.000Z`)));
+        if (input?.hasta) conditions.push(lte(incidentes.createdAt, new Date(`${input.hasta}T23:59:59.999Z`)));
+        if (input?.estado) conditions.push(eq(incidentes.estado, input.estado));
+        if (input?.municipio) conditions.push(eq(incidentes.municipio, input.municipio));
+        const rows = await db.select().from(incidentes)
+          .where(conditions.length > 0 ? and(...conditions) : undefined)
+          .orderBy(desc(incidentes.createdAt))
+          .limit(2000);
+        const csvRows = rows.map(r => [
+          r.folio,
+          `"${r.tipo.replace(/"/g, '""')}"`,
+          `"${r.municipio.replace(/"/g, '""')}"`,
+          `"${(r.colonia || "").replace(/"/g, '""')}"`,
+          r.estado,
+          r.prioridad,
+          `"${(r.personal || "").replace(/"/g, '""')}"`,
+          r.atendido ? "Sí" : "No",
+          new Date(r.createdAt).toLocaleString("es-MX"),
+          `"${r.narrativa.replace(/"/g, '""')}"`,
+        ].join(","));
+        return {
+          csv: [headers.join(","), ...csvRows].join("\n"),
+          filename: `incidentes-${new Date().toISOString().split("T")[0]}.csv`,
+          recordCount: rows.length,
+        };
+      } catch (e) {
+        logger.error("[Incidentes] Error exporting CSV:", e);
+        return { csv: headers.join(","), filename: `incidentes-${new Date().toISOString().split("T")[0]}.csv`, recordCount: 0 };
       }
     }),
 });

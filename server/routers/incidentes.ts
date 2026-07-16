@@ -7,6 +7,7 @@ import { eq, desc, gte, lte, and } from "drizzle-orm";
 import { logger } from "../_core/logger";
 import { logAudit } from "../config/auditLog";
 import { emitEvent } from "../services/realtimeService";
+import { CENTROIDE_POR_NOMBRE } from "../data/edomexCentroids";
 
 const estadoSchema = z.enum(["en_proceso", "cerrado", "investigacion"]);
 const prioridadSchema = z.enum(["baja", "media", "alta", "critica"]);
@@ -81,6 +82,9 @@ export const incidentesRouter = router({
     .mutation(async ({ input, ctx }) => {
       const db = await getDb();
       if (!db) return { success: false, message: "BD no disponible" };
+      const centroide = CENTROIDE_POR_NOMBRE[input.municipio];
+      const lat = input.lat ?? centroide?.lat;
+      const lng = input.lng ?? centroide?.lng;
       // nextFolio() no es atómico (lee máximo, luego inserta) — dos crear()
       // concurrentes pueden calcular el mismo folio. La constraint UNIQUE en
       // folio hace que el segundo insert falle; reintentamos regenerando el
@@ -97,8 +101,8 @@ export const incidentesRouter = router({
             narrativa: input.narrativa,
             prioridad: input.prioridad,
             estado: input.estado ?? "en_proceso",
-            lat: input.lat?.toString(),
-            lng: input.lng?.toString(),
+            lat: lat?.toString(),
+            lng: lng?.toString(),
             personal: input.personal,
             createdBy: ctx.user?.email || ctx.user?.openId,
           });

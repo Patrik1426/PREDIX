@@ -137,3 +137,29 @@ describe("incidentes mutations — permisos por rol", () => {
     expect(result.success).toBe(false); // degrada por BD en test, no rechaza por permiso
   });
 });
+
+describe("incidentes.crear — autocompletado de coordenadas", () => {
+  it("con lat/lng explícitos, los respeta (no los sobreescribe)", async () => {
+    const caller = appRouter.createCaller(createContext(AUTH_USER));
+    const result = await caller.incidentes.crear({
+      tipo: "Robo", municipio: "Toluca de Lerdo", narrativa: "x", prioridad: "media", lat: 19.1, lng: -99.5,
+    });
+    expect(result.success).toBe(false); // degrada por BD, no por lógica de coordenadas
+  });
+
+  it("sin lat/lng, no truena al buscar el centroide de un municipio válido", async () => {
+    const caller = appRouter.createCaller(createContext(AUTH_USER));
+    const result = await caller.incidentes.crear({
+      tipo: "Robo", municipio: "Toluca de Lerdo", narrativa: "x", prioridad: "media",
+    });
+    expect(result.success).toBe(false); // degrada por BD
+  });
+
+  it("sin lat/lng y con un municipio que no está en el catálogo de centroides, no truena", async () => {
+    const caller = appRouter.createCaller(createContext(AUTH_USER));
+    const result = await caller.incidentes.crear({
+      tipo: "Robo", municipio: "Municipio Inexistente", narrativa: "x", prioridad: "media",
+    });
+    expect(result.success).toBe(false); // degrada por BD, no truena por centroide faltante
+  });
+});

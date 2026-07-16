@@ -140,19 +140,21 @@ export async function getIncidentAttachments(incidentId: string): Promise<Incide
   }
 }
 
-export async function deleteIncidentAttachment(attachmentId: number): Promise<boolean> {
+export async function deleteIncidentAttachment(attachmentId: number): Promise<IncidentAttachment | null> {
   const db = await getDb();
   if (!db) {
     logger.warn("[Database] Cannot delete attachment: database not available");
-    return false;
+    return null;
   }
 
   try {
+    const existing = await db.select().from(incidentAttachments).where(eq(incidentAttachments.id, attachmentId)).limit(1);
+    if (existing.length === 0) return null;
     await db.delete(incidentAttachments).where(eq(incidentAttachments.id, attachmentId));
-    return true;
+    return existing[0];
   } catch (error) {
     logger.error("[Database] Failed to delete attachment:", error);
-    return false;
+    return null;
   }
 }
 

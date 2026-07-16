@@ -4,10 +4,12 @@
  */
 
 import { z } from "zod";
-import { publicProcedure, protectedProcedure, router } from "../_core/infra/trpc";
+import { publicProcedure, protectedProcedure, requirePermission, router } from "../_core/infra/trpc";
 import { getIncidenciaByMunicipio, getIncidenciaEstatal, getIncidenciaMapa, getIncidenciaOrigen, syncSesnspData } from "../data/sesnsp";
 import { addIncidentAttachment, getIncidentAttachments, deleteIncidentAttachment, getDb } from "../config/db";
-import { storagePut } from "../config/storage";
+import { storagePut, storageDelete } from "../config/storage";
+import { MODULES } from "../_core/infra/permissions";
+import { logAudit } from "../config/auditLog";
 import { sesnspSyncLog, incidenciaDelito } from "../../drizzle/schema";
 import { desc, sql, count } from "drizzle-orm";
 
@@ -158,23 +160,23 @@ export const incidenciaRouter = router({
   /**
    * Upload file attachment for an incident
    */
-  uploadAttachment: publicProcedure
+  uploadAttachment: requirePermission(MODULES.INCIDENTES, "canEdit")
     .input(
       z.object({
         incidentId: z.string().min(1).max(100),
         fileName: z.string().min(1).max(255),
-        fileData: z.string().min(1),
+        fileData: z.string().min(1).max(14_000_000),
         mimeType: z.string().min(1).max(100),
         description: z.string().max(1000).optional(),
       })
     )
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
       try {
         // Decode base64 file data
         const buffer = Buffer.from(input.fileData, "base64");
         const fileSize = buffer.length;
 
-        // Upload to S3
+        // Upload to local disk
         const s3Key = `incidents/${input.incidentId}/${Date.now()}-${input.fileName}`;
         const { url: s3Url } = await storagePut(s3Key, buffer, input.mimeType);
 
@@ -188,7 +190,16 @@ export const incidenciaRouter = router({
           s3Url,
           mimeType: input.mimeType,
           description: input.description,
-          uploadedBy: "system",
+          uploadedBy: ctx.user.email || ctx.user.openId,
+        });
+
+        await logAudit({
+          userId: ctx.user.id,
+          action: "UPLOAD_ATTACHMENT",
+          module: "incidentes",
+          resourceId: input.incidentId,
+          details: input.fileName,
+          ip: ctx.req.ip || "unknown",
         });
 
         return {
@@ -207,7 +218,7 @@ export const incidenciaRouter = router({
   /**
    * Get attachments for an incident
    */
-  getAttachments: publicProcedure
+  getAttachments: protectedProcedure
     .input(z.object({ incidentId: z.string() }))
     .query(async ({ input }) => {
       return await getIncidentAttachments(input.incidentId);
@@ -216,11 +227,21 @@ export const incidenciaRouter = router({
   /**
    * Delete an attachment
    */
-  deleteAttachment: publicProcedure
+  deleteAttachment: requirePermission(MODULES.INCIDENTES, "canDelete")
     .input(z.object({ attachmentId: z.number() }))
-    .mutation(async ({ input }) => {
-      const success = await deleteIncidentAttachment(input.attachmentId);
-      return { success };
+    .mutation(async ({ input, ctx }) => {
+      const deleted = await deleteIncidentAttachment(input.attachmentId);
+      if (!deleted) return { success: false };
+      await storageDelete(deleted.s3Key);
+      await logAudit({
+        userId: ctx.user.id,
+        action: "DELETE_ATTACHMENT",
+        module: "incidentes",
+        resourceId: deleted.incidentId,
+        details: deleted.fileName,
+        ip: ctx.req.ip || "unknown",
+      });
+      return { success: true };
     }),
 
   /**

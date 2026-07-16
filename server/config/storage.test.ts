@@ -38,8 +38,21 @@ describe("storageDelete", () => {
 });
 
 describe("resolveAttachmentPath", () => {
-  it("evita escapar de UPLOADS_DIR con ../../", () => {
-    const resolved = resolveAttachmentPath("../../etc/passwd");
-    expect(resolved.startsWith(path.resolve(ENV.uploadsDir))).toBe(false);
+  it("lanza si la ruta escapa de UPLOADS_DIR con ../../", () => {
+    expect(() => resolveAttachmentPath("../../etc/passwd")).toThrow(/escapes/);
+  });
+
+  it("resuelve rutas normales sin lanzar", () => {
+    expect(() => resolveAttachmentPath("incidents/INC-001/foto.jpg")).not.toThrow();
+  });
+});
+
+describe("path traversal — storagePut/storageDelete rechazan escapes", () => {
+  it("storagePut lanza con una key que intenta escapar de UPLOADS_DIR", async () => {
+    await expect(storagePut("../../../etc/cron.d/evil", Buffer.from("x"))).rejects.toThrow(/escapes/);
+  });
+
+  it("storageDelete lanza con una key que intenta escapar de UPLOADS_DIR", async () => {
+    await expect(storageDelete("../../../etc/passwd")).rejects.toThrow(/escapes/);
   });
 });

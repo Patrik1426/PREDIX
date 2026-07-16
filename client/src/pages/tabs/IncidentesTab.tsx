@@ -70,6 +70,8 @@ export default function IncidentesTab() {
   const [showFilters, setShowFilters] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [showNewDialog, setShowNewDialog] = useState(false);
+  const [showEditDialog, setShowEditDialog] = useState(false);
+  const [editIncidente, setEditIncidente] = useState({ narrativa: "", prioridad: "media" as string, personal: "" });
   const [filters, setFilters] = useState<IncidentFilterState>({ searchText: "", priority: [], status: [], municipios: [], crimeTypes: [] });
   const [newIncidente, setNewIncidente] = useState({ tipo: "", municipio: "", colonia: "", narrativa: "", prioridad: "media" as string, personal: "" });
 
@@ -201,6 +203,25 @@ export default function IncidentesTab() {
     if (dbId === undefined) { toast.info("Vista de demostración — inicia sesión para modificar incidentes."); return; }
     if (!confirm("¿Eliminar este incidente de la base de datos?")) return;
     eliminarMut.mutate({ id: dbId });
+  };
+
+  const handleAbrirEditar = () => {
+    if (!sel) return;
+    setEditIncidente({ narrativa: sel.narrativa, prioridad: sel.prioridad, personal: sel.personal === "Sin asignar" ? "" : sel.personal });
+    setShowEditDialog(true);
+  };
+
+  const handleGuardarEdicion = () => {
+    const dbId = getDbId(sel);
+    if (dbId === undefined) { toast.info("Vista de demostración — inicia sesión para modificar incidentes."); return; }
+    actualizarMut.mutate({
+      id: dbId,
+      narrativa: editIncidente.narrativa,
+      prioridad: PRIORIDAD_LABEL_TO_DB[editIncidente.prioridad] || "media",
+      personal: editIncidente.personal || undefined,
+    }, {
+      onSuccess: d => okOr(d, () => { toast.success("Incidente actualizado."); setShowEditDialog(false); }),
+    });
   };
 
   const sp = sel ? priCfg(sel.prioridad) : priCfg("");
@@ -368,6 +389,10 @@ export default function IncidentesTab() {
                 )}
               </div>
 
+              <button onClick={handleAbrirEditar} className="px-btn px-btn-secondary w-full mb-2" style={{ minHeight: 38, fontSize: "var(--px-text-xs)" }}>
+                <FileText size={13} /> EDITAR NARRATIVA / PRIORIDAD / PERSONAL
+              </button>
+
               <button onClick={() => setShowModal(true)} className="px-btn px-btn-primary w-full mb-3" style={{ minHeight: 40 }}>
                 <FileText size={14} /> Ver detalle completo
               </button>
@@ -471,6 +496,52 @@ export default function IncidentesTab() {
               <button onClick={() => setShowNewDialog(false)} className="px-btn px-btn-secondary flex-1">CANCELAR</button>
               <button onClick={handleCrearIncidente} className="px-btn px-btn-primary flex-1">
                 <FileText size={14} /> REGISTRAR INCIDENTE
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Dialog: editar incidente ── */}
+      {showEditDialog && sel && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-overlay" style={{ background: "rgba(0,0,0,0.7)", backdropFilter: "blur(4px)" }}>
+          <div role="dialog" aria-modal="true" aria-labelledby="edit-incidente-title" className="w-full max-w-lg rounded-lg mx-4 px-dialog-enter" style={{ background: "var(--px-surface)", border: "1px solid var(--px-hairline)", padding: "var(--px-5)" }}>
+            <div className="flex items-center justify-between" style={{ marginBottom: "var(--px-4)" }}>
+              <span id="edit-incidente-title" style={{ fontFamily: "var(--px-display)", fontSize: "var(--px-text-lg)", fontWeight: 700, color: "var(--px-text)" }}>
+                EDITAR INCIDENTE — {sel.id}
+              </span>
+              <button onClick={() => setShowEditDialog(false)} aria-label="Cerrar" className="px-btn px-btn-secondary" style={{ padding: "4px 8px" }}>&#x2715;</button>
+            </div>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: "var(--px-3)" }}>
+              <div className="flex gap-2">
+                {(["baja", "media", "alta", "crítica"] as const).map(pr => {
+                  const pc = priCfg(pr);
+                  return (
+                    <button key={pr} onClick={() => setEditIncidente(p => ({ ...p, prioridad: pr }))}
+                      className="px-btn flex-1" data-active={editIncidente.prioridad === pr}
+                      style={{ color: pc.color, padding: "8px", textTransform: "uppercase", fontSize: "var(--px-text-xs)",
+                        background: editIncidente.prioridad === pr ? pc.bg : "transparent",
+                        borderColor: editIncidente.prioridad === pr ? pc.color : "var(--px-hairline)" }}>
+                      {pr}
+                    </button>
+                  );
+                })}
+              </div>
+              <div>
+                <label className="px-label">PERSONAL ASIGNADO</label>
+                <input value={editIncidente.personal} onChange={e => setEditIncidente(p => ({ ...p, personal: e.target.value }))} placeholder="Ej: Patrulla P-4521" className="px-input" />
+              </div>
+              <div>
+                <label className="px-label">NARRATIVA</label>
+                <textarea value={editIncidente.narrativa} onChange={e => setEditIncidente(p => ({ ...p, narrativa: e.target.value }))} rows={4} className="px-input" style={{ resize: "vertical" }} />
+              </div>
+            </div>
+
+            <div className="flex gap-3" style={{ marginTop: "var(--px-5)" }}>
+              <button onClick={() => setShowEditDialog(false)} className="px-btn px-btn-secondary flex-1">CANCELAR</button>
+              <button onClick={handleGuardarEdicion} className="px-btn px-btn-primary flex-1">
+                <FileText size={14} /> GUARDAR CAMBIOS
               </button>
             </div>
           </div>

@@ -136,6 +136,7 @@ export const prediccionesRouter = router({
           promedioPredictivo,
           cambioProcentual: Math.round(cambioProcentual),
           predicciones: prediccion.predicciones,
+          desglose: prediccion.desglose,
           recomendaciones: generarRecomendaciones(riesgoProyectado, tendenciaGeneral),
         },
       };

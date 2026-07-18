@@ -18,6 +18,15 @@ function riskColor(r: string) {
   return "var(--px-ok)";
 }
 
+const TIPO_LABELS: Record<string, string> = {
+  homicidios: "Homicidios",
+  robos: "Robos",
+  lesiones: "Lesiones",
+  violencia_sexual: "Violencia sexual",
+  narcomenudeo: "Narcomenudeo",
+  otros: "Otros delitos",
+};
+
 export default function PrediccionesTab() {
   const [selectedMunicipio, setSelectedMunicipio] = useState("");
   const [meses, setMeses] = useState(3);
@@ -207,6 +216,25 @@ export default function PrediccionesTab() {
               <div className="px-eyebrow" style={{ color: "var(--px-warn)", marginBottom: "var(--px-1)" }}>Recomendaciones</div>
               {pred.recomendaciones.map((rec: string, i: number) => (
                 <div key={i} style={{ fontFamily: "var(--px-body)", fontSize: "var(--px-text-xs)", color: "var(--px-text-muted)", padding: "2px 0" }}>▸ {rec}</div>
+              ))}
+            </div>
+          )}
+
+          {pred.desglose?.length > 0 && (
+            <div style={{ padding: "var(--px-3)", border: "1px solid var(--px-hairline)", borderRadius: "var(--px-r-sm)" }}>
+              <div className="px-eyebrow" style={{ marginBottom: "var(--px-2)" }}>Desglose por tipo de delito</div>
+              {pred.desglose.map((d: any) => (
+                <div key={d.tipo} className="flex items-center gap-2" style={{ padding: "5px 0", borderBottom: "1px solid var(--px-hairline)" }}>
+                  <span style={{ fontFamily: "var(--px-body)", fontSize: "var(--px-text-xs)", color: "var(--px-text-muted)", flex: 1 }}>
+                    {TIPO_LABELS[d.tipo] || d.tipo}
+                  </span>
+                  <span style={{ fontFamily: "var(--px-mono)", fontSize: "var(--px-text-xs)", color: "var(--px-text-faint)" }}>
+                    {d.modelo}{d.mapeBacktest != null ? ` · MAPE ${d.mapeBacktest}%` : ""}
+                  </span>
+                  <span style={{ fontFamily: "var(--px-mono)", fontSize: "var(--px-text-sm)", fontWeight: 700, color: "var(--px-brand)", width: 48, textAlign: "right" }}>
+                    {d.promedioPredictivo}
+                  </span>
+                </div>
               ))}
             </div>
           )}

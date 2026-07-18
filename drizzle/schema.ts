@@ -303,3 +303,30 @@ export const incidentes = mysqlTable("incidentes", {
 
 export type Incidente = typeof incidentes.$inferSelect;
 export type InsertIncidente = typeof incidentes.$inferInsert;
+
+// ── Predicciones ML — resultado del pipeline offline (scripts/predict/) ──
+// 1 fila por (municipio, tipo de delito, horizonte de 1 a 12 meses).
+// Se sobreescribe completo (TRUNCATE + INSERT) cada vez que corre el script.
+export const prediccionesMl = mysqlTable("predicciones_ml", {
+  id: int("id").autoincrement().primaryKey(),
+  cveMuni: varchar("cve_muni", { length: 5 }).notNull(),
+  municipio: varchar("municipio", { length: 128 }).notNull(),
+  tipoDelito: varchar("tipo_delito", { length: 32 }).notNull(),
+  modeloGanador: varchar("modelo_ganador", { length: 32 }).notNull(),
+  mapeBacktest: int("mape_backtest"),
+  rmseBacktest: int("rmse_backtest"),
+  horizonte: int("horizonte").notNull(),
+  mesPrediccion: int("mes_prediccion").notNull(),
+  anioPrediccion: int("anio_prediccion").notNull(),
+  valorPredicho: int("valor_predicho").notNull(),
+  confianza: int("confianza").notNull(),
+  intervaloMin: int("intervalo_min").notNull(),
+  intervaloMax: int("intervalo_max").notNull(),
+  calculadoEn: timestamp("calculado_en").defaultNow().notNull(),
+}, (t) => [
+  index("idx_pred_ml_muni_tipo_horizonte").on(t.municipio, t.tipoDelito, t.horizonte),
+  index("idx_pred_ml_cve_muni").on(t.cveMuni),
+]);
+
+export type PrediccionMl = typeof prediccionesMl.$inferSelect;
+export type InsertPrediccionMl = typeof prediccionesMl.$inferInsert;

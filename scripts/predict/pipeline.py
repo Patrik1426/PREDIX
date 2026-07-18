@@ -73,7 +73,12 @@ def _recursive_forecast(train: np.ndarray, horizon: int, fit_fn: Callable) -> np
 
 def elasticnet_forecast(train: np.ndarray, horizon: int) -> np.ndarray:
     def fit(X, y):
-        m = ElasticNetCV(cv=3, l1_ratio=[0.1, 0.5, 0.9], max_iter=5000)
+        # n_alphas bajo (default sklearn es 100) — con 3 l1_ratio x cv=3 folds,
+        # el default hace ~900 ajustes por llamada; con ~750 series x hasta 4
+        # llamadas cada una, eso vuelve el pipeline completo impracticable.
+        # n_jobs=1 (no -1): el paralelismo real ocurre a nivel de serie, no
+        # aquí — ver build_predictions.py, evita paralelismo anidado.
+        m = ElasticNetCV(cv=3, l1_ratio=[0.1, 0.5, 0.9], alphas=20, max_iter=2000, n_jobs=1)
         m.fit(X, y)
         return m
     return _recursive_forecast(train, horizon, fit)
@@ -81,7 +86,7 @@ def elasticnet_forecast(train: np.ndarray, horizon: int) -> np.ndarray:
 
 def random_forest_forecast(train: np.ndarray, horizon: int) -> np.ndarray:
     def fit(X, y):
-        m = RandomForestRegressor(n_estimators=200, max_depth=6, random_state=42)
+        m = RandomForestRegressor(n_estimators=100, max_depth=6, random_state=42, n_jobs=1)
         m.fit(X, y)
         return m
     return _recursive_forecast(train, horizon, fit)

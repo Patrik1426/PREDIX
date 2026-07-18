@@ -1,9 +1,12 @@
 /**
  * mlPredictor.ts — Servicio de predicción ML
- * Implementa modelo de series temporales para predecir delincuencia
+ * Lee los resultados ya calculados por scripts/predict/build_predictions.py
+ * (tabla predicciones_ml) — sin cómputo estadístico en el request path.
  */
 
-import { getIncidenciaByMunicipio, getIncidenciaEstatal } from "../data/sesnsp";
+import { asc, eq } from "drizzle-orm";
+import { getDb } from "../config/db";
+import { prediccionesMl } from "../../drizzle/schema";
 import { logger } from "../_core/logger";
 import { EDOMEX_CENTROIDES } from "../data/edomexCentroids";
 
@@ -20,220 +23,144 @@ export interface PredictionData {
   };
 }
 
+export interface DesgloseTipo {
+  tipo: string;
+  modelo: string;
+  mapeBacktest: number | null;
+  promedioPredictivo: number;
+  confianza: number;
+}
+
 export interface MunicipioPrediction {
   municipio: string;
   predicciones: PredictionData[];
   promedioPredictivo: number;
   tendenciaGeneral: "al_alza" | "a_la_baja" | "estable";
   riesgoProyectado: "bajo" | "medio" | "alto" | "crítico";
+  desglose: DesgloseTipo[];
+}
+
+/** Forma mínima de una fila de predicciones_ml que necesita la lógica pura. */
+export interface PrediccionMlRow {
+  municipio: string;
+  tipoDelito: string;
+  modeloGanador: string;
+  mapeBacktest: number | null;
+  horizonte: number;
+  mesPrediccion: number;
+  anioPrediccion: number;
+  valorPredicho: number;
+  confianza: number;
+  intervaloMin: number;
+  intervaloMax: number;
 }
 
 /**
- * Calcula media móvil simple (SMA)
+ * Transforma filas crudas de predicciones_ml (una por tipo de delito x
+ * horizonte) en el shape que consume el frontend. Función pura — sin BD,
+ * testeable directamente con fixtures.
  */
-function calcularSMA(datos: number[], periodo: number): number[] {
-  const sma: number[] = [];
-  for (let i = 0; i < datos.length; i++) {
-    if (i < periodo - 1) {
-      sma.push(datos[i]);
-    } else {
-      const suma = datos.slice(i - periodo + 1, i + 1).reduce((a, b) => a + b, 0);
-      sma.push(suma / periodo);
-    }
-  }
-  return sma;
-}
-
-/**
- * Calcula desviación estándar
- */
-function calcularDesviacionEstandar(datos: number[]): number {
-  const media = datos.reduce((a, b) => a + b, 0) / datos.length;
-  const varianza = datos.reduce((a, b) => a + Math.pow(b - media, 2), 0) / datos.length;
-  return Math.sqrt(varianza);
-}
-
-/**
- * Calcula tendencia lineal usando mínimos cuadrados
- */
-function calcularTendenciaLineal(datos: number[]): { pendiente: number; interseccion: number } {
-  const n = datos.length;
-  const x = Array.from({ length: n }, (_, i) => i);
-  const sumX = x.reduce((a, b) => a + b, 0);
-  const sumY = datos.reduce((a, b) => a + b, 0);
-  const sumXY = x.reduce((sum, xi, i) => sum + xi * datos[i], 0);
-  const sumX2 = x.reduce((sum, xi) => sum + xi * xi, 0);
-
-  const pendiente = (n * sumXY - sumX * sumY) / (n * sumX2 - sumX * sumX);
-  const interseccion = (sumY - pendiente * sumX) / n;
-
-  return { pendiente, interseccion };
-}
-
-/**
- * Predice valores futuros usando regresión lineal exponencial suavizada
- */
-function predecirValoresFuturos(
-  datos: number[],
-  periodos: number,
-  alfa: number = 0.3
-): { predicciones: number[]; confianza: number[] } {
-  const predicciones: number[] = [];
-  const confianza: number[] = [];
-
-  // Suavizado exponencial
-  let suavizado = datos[0];
-  for (let i = 1; i < datos.length; i++) {
-    suavizado = alfa * datos[i] + (1 - alfa) * suavizado;
-  }
-
-  // Calcular tendencia
-  const { pendiente } = calcularTendenciaLineal(datos);
-  const desviacion = calcularDesviacionEstandar(datos);
-
-  // Generar predicciones
-  for (let i = 1; i <= periodos; i++) {
-    const prediccion = suavizado + pendiente * i;
-    predicciones.push(Math.max(0, prediccion)); // No negativos
-
-    // Confianza disminuye con distancia temporal
-    const confianzaBase = Math.max(0.5, 1 - i * 0.1);
-    confianza.push(confianzaBase);
-  }
-
-  return { predicciones, confianza };
-}
-
-/**
- * Obtiene datos históricos de un municipio
- */
-async function obtenerHistoricoMunicipio(
+export function buildMunicipioPrediction(
   municipio: string,
-  tipoDelito: string = "todos"
-): Promise<number[]> {
-  try {
-    // Datos reales (tabla granular). Ordenar ascendente para la serie temporal.
-    const registros = (await getIncidenciaByMunicipio(municipio)).sort(
-      (a, b) => a.anio - b.anio || a.mes - b.mes,
-    );
+  rows: PrediccionMlRow[],
+  meses: number
+): MunicipioPrediction | null {
+  if (rows.length === 0) return null;
 
-    if (registros.length === 0) {
-      return [];
-    }
-
-    // Sumar todos los delitos si es "todos"
-    if (tipoDelito === "todos") {
-      return registros.map((r) => {
-        const total =
-          (r.homicidios || 0) +
-          (r.robos || 0) +
-          (r.lesiones || 0) +
-          (r.violenciaSexual || 0) +
-          (r.traficoDeDropgas || 0) +
-          (r.otrosDelitos || 0);
-        return total;
-      });
-    }
-
-    // Retornar tipo específico
-    return registros.map((r) => {
-      switch (tipoDelito) {
-        case "homicidios":
-          return r.homicidios || 0;
-        case "robos":
-          return r.robos || 0;
-        case "lesiones":
-          return r.lesiones || 0;
-        case "violencia_sexual":
-          return r.violenciaSexual || 0;
-        case "trafico_drogas":
-          return r.traficoDeDropgas || 0;
-        default:
-          return r.otrosDelitos || 0;
-      }
-    });
-  } catch (error) {
-    logger.error("[ML] Error fetching historical data:", error);
-    return [];
+  const horizonteMax = Math.min(meses, 12);
+  const porHorizonte = new Map<number, PrediccionMlRow[]>();
+  for (const r of rows) {
+    if (r.horizonte > horizonteMax) continue;
+    const arr = porHorizonte.get(r.horizonte) ?? [];
+    arr.push(r);
+    porHorizonte.set(r.horizonte, arr);
   }
+
+  const predicciones: PredictionData[] = [];
+  for (let h = 1; h <= horizonteMax; h++) {
+    const tipos = porHorizonte.get(h);
+    if (!tipos || tipos.length === 0) continue;
+    const total = tipos.reduce((s, t) => s + t.valorPredicho, 0);
+    const minimo = tipos.reduce((s, t) => s + t.intervaloMin, 0);
+    const maximo = tipos.reduce((s, t) => s + t.intervaloMax, 0);
+    const confianzaProm = Math.round(tipos.reduce((s, t) => s + t.confianza, 0) / tipos.length);
+    predicciones.push({
+      municipio,
+      mes: tipos[0]!.mesPrediccion,
+      anio: tipos[0]!.anioPrediccion,
+      prediccion: Math.max(0, total),
+      confianza: confianzaProm,
+      tendencia: "estable",
+      intervaloConfianza: {
+        minimo: Math.max(0, minimo),
+        maximo: Math.max(0, maximo),
+      },
+    });
+  }
+
+  if (predicciones.length === 0) return null;
+
+  const primero = predicciones[0]!.prediccion;
+  const ultimo = predicciones[predicciones.length - 1]!.prediccion;
+  let tendenciaGeneral: "al_alza" | "a_la_baja" | "estable" = "estable";
+  if (primero > 0 && ultimo > primero * 1.1) tendenciaGeneral = "al_alza";
+  else if (primero > 0 && ultimo < primero * 0.9) tendenciaGeneral = "a_la_baja";
+  for (const p of predicciones) p.tendencia = tendenciaGeneral;
+
+  const promedioPredictivo = Math.round(
+    predicciones.reduce((s, p) => s + p.prediccion, 0) / predicciones.length
+  );
+
+  let riesgoProyectado: "bajo" | "medio" | "alto" | "crítico";
+  if (promedioPredictivo < 50) riesgoProyectado = "bajo";
+  else if (promedioPredictivo < 150) riesgoProyectado = "medio";
+  else if (promedioPredictivo < 300) riesgoProyectado = "alto";
+  else riesgoProyectado = "crítico";
+
+  const desglosePorTipo = new Map<string, PrediccionMlRow>();
+  for (const r of rows) {
+    if (r.horizonte === 1) desglosePorTipo.set(r.tipoDelito, r);
+  }
+  const desglose: DesgloseTipo[] = Array.from(desglosePorTipo.values()).map((r) => ({
+    tipo: r.tipoDelito,
+    modelo: r.modeloGanador,
+    mapeBacktest: r.mapeBacktest,
+    promedioPredictivo: r.valorPredicho,
+    confianza: r.confianza,
+  }));
+
+  return { municipio, predicciones, promedioPredictivo, tendenciaGeneral, riesgoProyectado, desglose };
 }
 
 /**
- * Predice delincuencia para un municipio
+ * Predice delincuencia para un municipio — lee predicciones_ml, ya
+ * calculada por el pipeline offline (scripts/predict/build_predictions.py).
  */
 export async function predecirDelincuenciaMunicipio(
   municipio: string,
   meses: number = 3
 ): Promise<MunicipioPrediction | null> {
   try {
-    const historico = await obtenerHistoricoMunicipio(municipio);
-
-    if (historico.length < 3) {
-      logger.warn(`[ML] Insufficient data for ${municipio}`);
+    const db = await getDb();
+    if (!db) {
+      logger.warn("[ML] Database not available");
       return null;
     }
 
-    const { predicciones, confianza } = predecirValoresFuturos(historico, meses);
+    const rows = await db
+      .select()
+      .from(prediccionesMl)
+      .where(eq(prediccionesMl.municipio, municipio))
+      .orderBy(asc(prediccionesMl.horizonte));
 
-    // Calcular tendencia
-    const ultimosValores = historico.slice(-3);
-    const promedio = ultimosValores.reduce((a, b) => a + b, 0) / ultimosValores.length;
-    const { pendiente } = calcularTendenciaLineal(ultimosValores);
-
-    let tendenciaGeneral: "al_alza" | "a_la_baja" | "estable";
-    if (pendiente > 5) {
-      tendenciaGeneral = "al_alza";
-    } else if (pendiente < -5) {
-      tendenciaGeneral = "a_la_baja";
-    } else {
-      tendenciaGeneral = "estable";
+    if (rows.length === 0) {
+      logger.warn(
+        `[ML] Sin predicciones calculadas para ${municipio} — correr scripts/predict/build_predictions.py`
+      );
+      return null;
     }
 
-    // Calcular riesgo proyectado
-    const promedioPredictivo = predicciones.reduce((a, b) => a + b, 0) / predicciones.length;
-    let riesgoProyectado: "bajo" | "medio" | "alto" | "crítico";
-    if (promedioPredictivo < 50) {
-      riesgoProyectado = "bajo";
-    } else if (promedioPredictivo < 150) {
-      riesgoProyectado = "medio";
-    } else if (promedioPredictivo < 300) {
-      riesgoProyectado = "alto";
-    } else {
-      riesgoProyectado = "crítico";
-    }
-
-    // Construir predicciones con fechas
-    const hoy = new Date();
-    const prediccionesConFecha: PredictionData[] = predicciones.map((pred, i) => {
-      const fecha = new Date(hoy);
-      fecha.setMonth(fecha.getMonth() + i + 1);
-
-      const intervaloConfianza = {
-        minimo: Math.max(0, pred * (1 - (1 - confianza[i]!))),
-        maximo: pred * (1 + (1 - confianza[i]!)),
-      };
-
-      return {
-        municipio,
-        mes: fecha.getMonth() + 1,
-        anio: fecha.getFullYear(),
-        prediccion: Math.round(pred),
-        confianza: Math.round(confianza[i]! * 100),
-        tendencia: tendenciaGeneral,
-        intervaloConfianza: {
-          minimo: Math.round(intervaloConfianza.minimo),
-          maximo: Math.round(intervaloConfianza.maximo),
-        },
-      };
-    });
-
-    return {
-      municipio,
-      predicciones: prediccionesConFecha,
-      promedioPredictivo: Math.round(promedioPredictivo),
-      tendenciaGeneral,
-      riesgoProyectado,
-    };
+    return buildMunicipioPrediction(municipio, rows, meses);
   } catch (error) {
     logger.error(`[ML] Error predicting for ${municipio}:`, error);
     return null;
@@ -248,28 +175,23 @@ export async function predecirDelincuenciaMultiple(
   meses: number = 3
 ): Promise<MunicipioPrediction[]> {
   const predicciones: MunicipioPrediction[] = [];
-
   for (const municipio of municipios) {
     const prediccion = await predecirDelincuenciaMunicipio(municipio, meses);
-    if (prediccion) {
-      predicciones.push(prediccion);
-    }
+    if (prediccion) predicciones.push(prediccion);
   }
-
   return predicciones;
 }
 
 /**
- * Obtiene municipios únicos de la BD
+ * Obtiene municipios únicos con predicción calculada.
  */
 export async function obtenerMunicipios(): Promise<string[]> {
   try {
-    // Municipios con datos reales (ventana reciente). Dedup por nombre.
-    const registros = await getIncidenciaEstatal();
-    const nombres = Array.from(
-      new Set(registros.map((r) => r.municipio).filter((m) => m && m.length > 0)),
-    );
-    // Fallback al catálogo estático si la BD aún no tiene datos cargados.
+    const db = await getDb();
+    if (!db) return EDOMEX_CENTROIDES.map((m) => m.nombre);
+
+    const rows = await db.selectDistinct({ municipio: prediccionesMl.municipio }).from(prediccionesMl);
+    const nombres = rows.map((r) => r.municipio).filter((m) => m && m.length > 0);
     return nombres.length > 0 ? nombres : EDOMEX_CENTROIDES.map((m) => m.nombre);
   } catch (error) {
     logger.error("[ML] Error fetching municipalities:", error);

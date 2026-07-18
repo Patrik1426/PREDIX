@@ -99,7 +99,7 @@ def neg_binomial_forecast(train: np.ndarray, horizon: int) -> np.ndarray:
     X, y = _make_features(train)
     if len(X) < 5:
         return sma_forecast(train, horizon)
-    Xc = sm.add_constant(X)
+    Xc = sm.add_constant(X, prepend=True)
     try:
         model = sm.GLM(y, Xc, family=sm.families.NegativeBinomial()).fit()
     except Exception:
@@ -144,7 +144,9 @@ def backtest_series(values: np.ndarray, min_history: int = 12) -> dict[str, dict
     n = len(values)
     if n < min_history:
         return {}
-    n_splits = min(3, max(1, (n - min_history) // 3))
+    n_splits = min(3, (n - min_history) // 3)
+    if n_splits < 2:
+        return {}
     tscv = TimeSeriesSplit(n_splits=n_splits, test_size=3)
     raw: dict[str, list[tuple[float, float]]] = {name: [] for name in CANDIDATES}
     for train_idx, test_idx in tscv.split(values):

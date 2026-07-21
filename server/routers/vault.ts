@@ -2,7 +2,8 @@
  * tRPC Router for Vault Operations
  */
 
-import { router, publicProcedure, protectedProcedure } from "../_core/infra/trpc";
+import { requirePermission, router, protectedProcedure } from "../_core/infra/trpc";
+import { MODULES } from "../_core/infra/permissions";
 import { z } from "zod";
 import { getVaultManager } from "../services/vault/vaultManager";
 import { getEncryptionService } from "../services/vault/encryptionService";
@@ -14,7 +15,7 @@ export const vaultRouter = router({
   /**
    * Store a new secret
    */
-  storeSecret: protectedProcedure
+  storeSecret: requirePermission(MODULES.ADMIN, "canEdit")
     .input(
       z.object({
         integrationId: z.string().min(1).max(100),
@@ -49,7 +50,7 @@ export const vaultRouter = router({
   /**
    * Retrieve a secret
    */
-  retrieveSecret: protectedProcedure
+  retrieveSecret: requirePermission(MODULES.ADMIN, "canView")
     .input(z.object({ secretId: z.number() }))
     .query(async ({ input, ctx }) => {
       const secretValue = await vaultManager.retrieveSecret(input.secretId, ctx.user.id, ctx.req.ip || "unknown");
@@ -63,7 +64,7 @@ export const vaultRouter = router({
   /**
    * Update a secret
    */
-  updateSecret: protectedProcedure
+  updateSecret: requirePermission(MODULES.ADMIN, "canEdit")
     .input(
       z.object({
         secretId: z.number(),
@@ -80,9 +81,25 @@ export const vaultRouter = router({
     }),
 
   /**
+   * Rotate a secret (genera un valor nuevo, deja registro forense en secret_rotation_history)
+   */
+  rotateSecret: requirePermission(MODULES.ADMIN, "canEdit")
+    .input(z.object({ secretId: z.number() }))
+    .mutation(async ({ input, ctx }) => {
+      const newValue = encryptionService.generateRandomSecret(32);
+      const secretInfo = await vaultManager.rotateSecret(input.secretId, newValue, ctx.user.id, ctx.req.ip || "unknown");
+
+      return {
+        success: true,
+        data: secretInfo,
+        message: "Secret rotated successfully",
+      };
+    }),
+
+  /**
    * Delete a secret
    */
-  deleteSecret: protectedProcedure
+  deleteSecret: requirePermission(MODULES.ADMIN, "canDelete")
     .input(z.object({ secretId: z.number() }))
     .mutation(async ({ input, ctx }) => {
       await vaultManager.deleteSecret(input.secretId, ctx.user.id, ctx.req.ip || "unknown");
@@ -96,7 +113,7 @@ export const vaultRouter = router({
   /**
    * Get secret metadata
    */
-  getSecretInfo: protectedProcedure
+  getSecretInfo: requirePermission(MODULES.ADMIN, "canView")
     .input(z.object({ secretId: z.number() }))
     .query(async ({ input }) => {
       const secretInfo = await vaultManager.getSecretInfo(input.secretId);
@@ -110,7 +127,7 @@ export const vaultRouter = router({
   /**
    * List secrets for an integration
    */
-  listSecrets: protectedProcedure
+  listSecrets: requirePermission(MODULES.ADMIN, "canView")
     .input(z.object({ integrationId: z.string() }))
     .query(async ({ input }) => {
       const secrets = await vaultManager.listSecrets(input.integrationId);
@@ -123,9 +140,22 @@ export const vaultRouter = router({
     }),
 
   /**
+   * List all secrets across all integrations
+   */
+  listAllSecrets: requirePermission(MODULES.ADMIN, "canView").query(async () => {
+    const secrets = await vaultManager.listAllSecrets();
+
+    return {
+      success: true,
+      data: secrets,
+      count: secrets.length,
+    };
+  }),
+
+  /**
    * Get audit logs for a secret
    */
-  getAuditLogs: protectedProcedure
+  getAuditLogs: requirePermission(MODULES.ADMIN, "canView")
     .input(
       z.object({
         secretId: z.number(),
@@ -145,7 +175,7 @@ export const vaultRouter = router({
   /**
    * Get all audit logs
    */
-  getAllAuditLogs: protectedProcedure
+  getAllAuditLogs: requirePermission(MODULES.ADMIN, "canView")
     .input(
       z.object({
         limit: z.number().default(100),
@@ -164,7 +194,7 @@ export const vaultRouter = router({
   /**
    * Get secrets needing rotation
    */
-  getSecretsNeedingRotation: protectedProcedure.query(async () => {
+  getSecretsNeedingRotation: requirePermission(MODULES.ADMIN, "canView").query(async () => {
     const secrets = await vaultManager.getSecretsNeedingRotation();
 
     return {

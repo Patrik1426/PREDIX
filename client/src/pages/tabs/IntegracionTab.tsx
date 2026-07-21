@@ -4,7 +4,7 @@
  * FUNCIONAL: Detalles emergentes, nueva integración, bóveda de secretos interactiva
  */
 
-import { useState, useMemo, useCallback, useEffect } from "react";
+import { useState, useMemo, useEffect } from "react";
 import {
   Plug, Plus, CheckCircle, XCircle, RefreshCw, Code2, Zap,
   FileJson, Shield, Activity, ArrowRightLeft, Globe, Server,
@@ -13,6 +13,7 @@ import {
   Download, Edit, ExternalLink
 } from "lucide-react";
 import { toast } from "sonner";
+import { TRPCClientError } from "@trpc/client";
 import { ModuleHeader } from "@/components/dashboard";
 import { trpc } from "@/lib/trpc";
 
@@ -39,26 +40,32 @@ interface Integration {
   retries?: number;
 }
 
-interface VaultSecret {
+/** Forma real que expone vault.listAllSecrets (server/services/vault/vaultManager.ts) — superjson preserva los Date. */
+interface VaultSecretReal {
   id: number;
-  name: string;
-  type: string;
-  integration: string;
-  lastRotated: string;
-  expiresIn: number;
-  status: "active" | "expiring" | "expired";
-  value?: string;
-  masked: boolean;
+  integrationId: string;
+  secretName: string;
+  secretType: string;
+  expiresAt?: Date | null;
+  rotationInterval?: number | null;
+  lastRotatedAt?: Date | null;
+  nextRotationAt?: Date | null;
+  isActive: boolean;
+  createdAt: Date;
+  updatedAt: Date;
 }
 
-interface AuditEntry {
+/** Forma real que expone vault.getAllAuditLogs. */
+interface VaultAuditEntryReal {
   id: number;
-  timestamp: string;
-  user: string;
+  secretId: number;
+  integrationId: string;
+  userId: number;
   action: string;
-  integration: string;
-  status: "success" | "failed" | "denied";
-  ip: string;
+  status: string;
+  reason?: string | null;
+  ipAddress?: string | null;
+  timestamp: Date;
 }
 
 /* ─── Demo Data ─── */
@@ -67,29 +74,9 @@ interface AuditEntry {
 // tuvieron API pública real — se documentaron y sacaron del producto en vivo
 // el 2026-07-21, ver docs/referencia/CONECTORES_DESCARTADOS.md.
 const INITIAL_INTEGRATIONS: Integration[] = [
-  { id: "sesnsp-api", name: "SESNSP - Incidencia Delictiva", type: "REST", endpoint: "https://www.datos.gob.mx (SESNSP, pipeline scripts/load-sesnsp.ts)", authMethod: "NONE", status: "inactive", lastSync: "Sin datos", requestsToday: 0, avgLatency: 0, origen: "simulado", metricaLabel: "filas BD", description: "Secretariado Ejecutivo del Sistema Nacional de Seguridad Pública. Provee datos de incidencia delictiva por entidad, municipio y tipo de delito. Se sobreescribe con el estado real del pipeline en cuanto carga.", version: "v2.1", rateLimit: "—", timeout: 30000, retries: 3 },
-  { id: "inegi-geo", name: "INEGI - Datos Geoespaciales", type: "REST", endpoint: "https://mapas.inegi.org.mx/geoserver (WFS, Marco Geoestadístico)", authMethod: "NONE", status: "active", lastSync: "Carga puntual — Marco Geoestadístico", requestsToday: 125, avgLatency: 0, origen: "real", metricaLabel: "municipios", description: "Instituto Nacional de Estadística y Geografía. Polígonos municipales reales (WFS público) usados en el mapa; carga puntual vía scripts/load-municipios-geojson.ts, no un enlace continuo con contador de requests.", version: "v1.0", rateLimit: "—", timeout: 20000, retries: 3 },
-  { id: "denue-inegi", name: "DENUE - Directorio Empresas", type: "REST", endpoint: "https://www.inegi.org.mx/app/api/denue/v1", authMethod: "API_KEY", status: "error", lastSync: "Bloqueado — servicio de INEGI caído", requestsToday: 0, avgLatency: 0, origen: "simulado", description: "Directorio Estadístico Nacional de Unidades Económicas. Token gratis ya generado, pero el servicio de INEGI responde con errores de servidor para cualquier token (verificado 2026-07-21, no es un problema de nuestra credencial) — ver CLAUDE.md.", version: "v1.0", rateLimit: "—", timeout: 25000, retries: 2 },
-];
-
-const INITIAL_SECRETS: VaultSecret[] = [
-  { id: 1, name: "SESNSP_API_KEY", type: "API_KEY", integration: "SESNSP", lastRotated: "2026-04-01", expiresIn: 45, status: "active", value: "sk-sesnsp-****-****-7f3a", masked: true },
-  { id: 2, name: "C5_CERTIFICATE", type: "CERTIFICATE", integration: "C5 EdoMéx", lastRotated: "2026-03-15", expiresIn: 12, status: "expiring", value: "cert-c5-****-****-9b2e", masked: true },
-  { id: 3, name: "INEGI_TOKEN", type: "API_KEY", integration: "INEGI", lastRotated: "2026-04-10", expiresIn: 82, status: "active", value: "tok-inegi-****-****-4d1c", masked: true },
-  { id: 4, name: "PGJ_OAUTH_SECRET", type: "OAUTH_TOKEN", integration: "PGJ EdoMéx", lastRotated: "2026-02-20", expiresIn: -5, status: "expired", value: "oauth-pgj-****-****-2a8f", masked: true },
-  { id: 5, name: "SSEM_BASIC_CREDS", type: "BASIC_AUTH", integration: "SSEM 911", lastRotated: "2026-04-05", expiresIn: 60, status: "active", value: "basic-ssem-****-****-6e3d", masked: true },
-  { id: 6, name: "PLATAFORMA_MX_CERT", type: "CERTIFICATE", integration: "Plataforma México", lastRotated: "2026-01-10", expiresIn: -20, status: "expired", value: "cert-pmx-****-****-1b5a", masked: true },
-];
-
-const DEMO_AUDIT: AuditEntry[] = [
-  { id: 1, timestamp: "17/04/2026 20:15:32", user: "admin@edomex.gob.mx", action: "READ_SECRET", integration: "SESNSP", status: "success", ip: "10.0.1.45" },
-  { id: 2, timestamp: "17/04/2026 20:12:18", user: "operador.c5@edomex.gob.mx", action: "SYNC_DATA", integration: "C5 EdoMéx", status: "success", ip: "10.0.1.102" },
-  { id: 3, timestamp: "17/04/2026 20:08:45", user: "analista@edomex.gob.mx", action: "API_CALL", integration: "INEGI", status: "success", ip: "10.0.2.33" },
-  { id: 4, timestamp: "17/04/2026 19:55:10", user: "sistema@predix", action: "ROTATE_SECRET", integration: "PGJ EdoMéx", status: "failed", ip: "127.0.0.1" },
-  { id: 5, timestamp: "17/04/2026 19:42:30", user: "admin@edomex.gob.mx", action: "CREATE_SECRET", integration: "SSEM 911", status: "success", ip: "10.0.1.45" },
-  { id: 6, timestamp: "17/04/2026 19:30:00", user: "invitado@edomex.gob.mx", action: "READ_SECRET", integration: "Plataforma MX", status: "denied", ip: "10.0.3.78" },
-  { id: 7, timestamp: "17/04/2026 19:15:22", user: "sistema@predix", action: "AUTO_SYNC", integration: "SSEM 911", status: "success", ip: "127.0.0.1" },
-  { id: 8, timestamp: "17/04/2026 18:58:11", user: "operador.c5@edomex.gob.mx", action: "UPDATE_CONFIG", integration: "C5 EdoMéx", status: "success", ip: "10.0.1.102" },
+  { id: "sesnsp-api", name: "SESNSP - Incidencia Delictiva", type: "REST", endpoint: "https://www.datos.gob.mx/dataset/incidencia_delictiva", authMethod: "NONE", status: "inactive", lastSync: "Sin datos", requestsToday: 0, avgLatency: 0, origen: "simulado", metricaLabel: "filas BD", description: "Secretariado Ejecutivo del Sistema Nacional de Seguridad Pública. Provee datos de incidencia delictiva por entidad, municipio y tipo de delito (portal real de datos.gob.mx, cargado vía scripts/load-sesnsp.ts). Se sobreescribe con el estado real del pipeline en cuanto carga.", version: "v2.1", rateLimit: "—", timeout: 30000, retries: 3 },
+  { id: "inegi-geo", name: "INEGI - Datos Geoespaciales", type: "REST", endpoint: "https://www.inegi.org.mx/app/mapa/espacioydatos/default.aspx", authMethod: "NONE", status: "active", lastSync: "Carga puntual — Marco Geoestadístico", requestsToday: 125, avgLatency: 0, origen: "real", metricaLabel: "municipios", description: "Instituto Nacional de Estadística y Geografía. Polígonos municipales reales del WFS público de GeoServer (mapas.inegi.org.mx/geoserver) usados en el mapa; carga puntual vía scripts/load-municipios-geojson.ts, no un enlace continuo con contador de requests.", version: "v1.0", rateLimit: "—", timeout: 20000, retries: 3 },
+  { id: "denue-inegi", name: "DENUE - Directorio Empresas", type: "REST", endpoint: "https://www.inegi.org.mx/app/mapa/denue/default.aspx", authMethod: "API_KEY", status: "error", lastSync: "Bloqueado — servicio de INEGI caído", requestsToday: 0, avgLatency: 0, origen: "simulado", description: "Directorio Estadístico Nacional de Unidades Económicas. Token gratis ya generado, pero la API (inegi.org.mx/app/api/denue/v1) responde con errores de servidor para cualquier token (verificado 2026-07-21, no es un problema de nuestra credencial) — ver CLAUDE.md. El visor público de INEGI sí funciona mientras tanto.", version: "v1.0", rateLimit: "—", timeout: 25000, retries: 2 },
 ];
 
 /* ─── Sub-tabs ─── */
@@ -147,8 +134,44 @@ export default function IntegracionTab() {
       origen: "real" as const,
     } : i));
   }, [sesnspStatus]);
-  const [secrets, setSecrets] = useState<VaultSecret[]>(INITIAL_SECRETS);
-  const [auditLogs, setAuditLogs] = useState<AuditEntry[]>(DEMO_AUDIT);
+  // Bóveda de secretos y auditoría — reales, persistidos en MySQL
+  // (secret_vault/secret_audit_log, ver server/services/vault/vaultManager.ts).
+  // Requieren sesión real con rol admin (requirePermission(ADMIN,...)) — la
+  // sesión demo client-side (botón "Acceso rápido") no cuenta como real aquí.
+  const utils = trpc.useUtils();
+  const { data: secretsResp } = trpc.vault.listAllSecrets.useQuery();
+  const secrets: VaultSecretReal[] = secretsResp?.data ?? [];
+  const { data: auditResp } = trpc.vault.getAllAuditLogs.useQuery({ limit: 100 });
+  const auditLogs: VaultAuditEntryReal[] = auditResp?.data ?? [];
+  // Valores descifrados revelados en esta sesión de navegador — nunca se
+  // guardan, se piden a retrieveSecret cada vez que se activa "Mostrar"
+  // (deja su propio rastro READ en secret_audit_log).
+  const [revealedValues, setRevealedValues] = useState<Record<number, string>>({});
+
+  const onVaultMutError = (e: unknown) => {
+    const code = e instanceof TRPCClientError ? e.data?.code : undefined;
+    if (code === "UNAUTHORIZED") toast.error("Requiere sesión iniciada");
+    else if (code === "FORBIDDEN") toast.error("Tu rol no tiene permiso para esta acción");
+    else toast.error(e instanceof Error ? e.message : "No se pudo completar la acción");
+  };
+
+  const nombreIntegracion = (integrationId: string) => integrations.find(i => i.id === integrationId)?.name ?? integrationId;
+
+  function estadoSecreto(s: VaultSecretReal): "active" | "expiring" | "expired" {
+    if (!s.isActive) return "expired";
+    const limite = s.nextRotationAt ? new Date(s.nextRotationAt) : s.expiresAt ? new Date(s.expiresAt) : null;
+    if (!limite) return "active";
+    const diasRestantes = Math.ceil((limite.getTime() - Date.now()) / 86400000);
+    if (diasRestantes <= 0) return "expired";
+    if (diasRestantes <= 15) return "expiring";
+    return "active";
+  }
+
+  function diasParaVencer(s: VaultSecretReal): number | null {
+    const limite = s.nextRotationAt ? new Date(s.nextRotationAt) : s.expiresAt ? new Date(s.expiresAt) : null;
+    if (!limite) return null;
+    return Math.ceil((limite.getTime() - Date.now()) / 86400000);
+  }
 
   // Dialogs
   const [showNewDialog, setShowNewDialog] = useState(false);
@@ -174,8 +197,8 @@ export default function IntegracionTab() {
     const totalRequests = integrations.reduce((sum, i) => sum + i.requestsToday, 0);
     const activeWithLatency = integrations.filter(i => i.avgLatency > 0);
     const avgLatency = activeWithLatency.length > 0 ? Math.round(activeWithLatency.reduce((sum, i) => sum + i.avgLatency, 0) / activeWithLatency.length) : 0;
-    const expiredSecrets = secrets.filter(s => s.status === "expired").length;
-    const expiringSecrets = secrets.filter(s => s.status === "expiring").length;
+    const expiredSecrets = secrets.filter(s => estadoSecreto(s) === "expired").length;
+    const expiringSecrets = secrets.filter(s => estadoSecreto(s) === "expiring").length;
     return { active, errors, totalRequests, avgLatency, expiredSecrets, expiringSecrets };
   }, [integrations, secrets]);
 
@@ -185,14 +208,7 @@ export default function IntegracionTab() {
     return integrations.filter(i => i.name.toLowerCase().includes(q) || i.type.toLowerCase().includes(q));
   }, [searchQuery, integrations]);
 
-  /* ─── Add audit ─── */
-  const addAudit = useCallback((action: string, integration: string, status: "success" | "failed" | "denied" = "success") => {
-    const now = new Date();
-    const ts = `${now.toLocaleDateString("es-MX")} ${now.toLocaleTimeString("es-MX")}`;
-    setAuditLogs(prev => [{ id: prev.length + 1, timestamp: ts, user: "admin@edomex.gob.mx", action, integration, status, ip: "10.0.1.45" }, ...prev]);
-  }, []);
-
-  /* ─── Create Integration ─── */
+  /* ─── Create Integration (demo de UI — sin backend real para integraciones arbitrarias) ─── */
   const handleCreateIntegration = () => {
     if (!newInteg.name || !newInteg.endpoint) { toast.error("Nombre y endpoint son obligatorios"); return; }
     const integration: Integration = {
@@ -201,17 +217,14 @@ export default function IntegracionTab() {
       description: newInteg.description || "Integración personalizada", version: "v1.0", rateLimit: "Sin definir", timeout: 30000, retries: 3,
     };
     setIntegrations(prev => [...prev, integration]);
-    addAudit("CREATE_INTEGRATION", newInteg.name);
-    toast.success(`Integración "${newInteg.name}" registrada exitosamente`);
+    toast.success(`Integración "${newInteg.name}" registrada (demo de UI, no persiste)`);
     setShowNewDialog(false);
     setNewInteg({ name: "", endpoint: "", type: "REST", authMethod: "API_KEY", description: "" });
   };
 
   /* ─── Delete Integration ─── */
   const handleDeleteIntegration = (id: string) => {
-    const integ = integrations.find(i => i.id === id);
     setIntegrations(prev => prev.filter(i => i.id !== id));
-    addAudit("DELETE_INTEGRATION", integ?.name || id);
     toast.success(`Integración eliminada`);
     if (selectedIntegration?.id === id) { setShowDetailDialog(false); setSelectedIntegration(null); }
   };
@@ -226,7 +239,6 @@ export default function IntegracionTab() {
     setIntegrations(prev => prev.map(i => {
       if (i.id !== id) return i;
       const newStatus = i.status === "active" ? "inactive" : "active";
-      addAudit(newStatus === "active" ? "ACTIVATE_INTEGRATION" : "DEACTIVATE_INTEGRATION", i.name);
       return { ...i, status: newStatus, lastSync: newStatus === "active" ? "Ahora" : i.lastSync };
     }));
     toast.success("Estado de integración actualizado");
@@ -239,44 +251,76 @@ export default function IntegracionTab() {
       return;
     }
     setIntegrations(prev => prev.map(i => i.id === integ.id ? { ...i, lastSync: "Ahora", requestsToday: i.requestsToday + 1 } : i));
-    addAudit("SYNC_DATA", integ.name);
     toast.success(`Sincronizando ${integ.name}...`);
   };
+
+  /* ─── Vault: mutaciones reales ─── */
+  const storeSecretMut = trpc.vault.storeSecret.useMutation({
+    onSuccess: () => { utils.vault.listAllSecrets.invalidate(); utils.vault.getAllAuditLogs.invalidate(); toast.success(`Secreto "${newSecret.name}" almacenado en la bóveda`); },
+    onError: onVaultMutError,
+  });
+  const rotateSecretMut = trpc.vault.rotateSecret.useMutation({
+    onSuccess: () => { utils.vault.listAllSecrets.invalidate(); utils.vault.getAllAuditLogs.invalidate(); toast.success("Secreto rotado exitosamente"); },
+    onError: onVaultMutError,
+  });
+  const deleteSecretMut = trpc.vault.deleteSecret.useMutation({
+    onSuccess: () => { utils.vault.listAllSecrets.invalidate(); utils.vault.getAllAuditLogs.invalidate(); toast.success("Secreto eliminado"); },
+    onError: onVaultMutError,
+  });
 
   /* ─── Create Secret ─── */
   const handleCreateSecret = () => {
     if (!newSecret.name || !newSecret.value) { toast.error("Nombre y valor son obligatorios"); return; }
-    const secret: VaultSecret = {
-      id: secrets.length + 1, name: newSecret.name, type: newSecret.type, integration: newSecret.integration || "General",
-      lastRotated: new Date().toISOString().split("T")[0], expiresIn: parseInt(newSecret.expiresInDays) || 90,
-      status: "active", value: `${newSecret.value.substring(0, 8)}****`, masked: true,
-    };
-    setSecrets(prev => [...prev, secret]);
-    addAudit("CREATE_SECRET", newSecret.integration || "General");
-    toast.success(`Secreto "${newSecret.name}" almacenado`);
+    storeSecretMut.mutate({
+      integrationId: newSecret.integration || "general",
+      secretName: newSecret.name,
+      secretType: newSecret.type as "API_KEY" | "OAUTH_TOKEN" | "BASIC_AUTH" | "CERTIFICATE" | "CUSTOM",
+      secretValue: newSecret.value,
+      rotationInterval: parseInt(newSecret.expiresInDays) || undefined,
+    });
     setShowNewSecretDialog(false);
     setNewSecret({ name: "", type: "API_KEY", integration: "", value: "", expiresInDays: "90" });
   };
 
   /* ─── Rotate Secret ─── */
   const handleRotateSecret = (id: number) => {
-    setSecrets(prev => prev.map(s => s.id === id ? { ...s, lastRotated: new Date().toISOString().split("T")[0], expiresIn: 90, status: "active" as const } : s));
-    const secret = secrets.find(s => s.id === id);
-    addAudit("ROTATE_SECRET", secret?.integration || "");
-    toast.success(`Secreto "${secret?.name}" rotado exitosamente`);
+    rotateSecretMut.mutate({ secretId: id });
+    setRevealedValues(prev => { const next = { ...prev }; delete next[id]; return next; });
   };
 
   /* ─── Delete Secret ─── */
   const handleDeleteSecret = (id: number) => {
-    const secret = secrets.find(s => s.id === id);
-    setSecrets(prev => prev.filter(s => s.id !== id));
-    addAudit("DELETE_SECRET", secret?.integration || "");
-    toast.success(`Secreto "${secret?.name}" eliminado`);
+    deleteSecretMut.mutate({ secretId: id });
   };
 
-  /* ─── Toggle Secret Visibility ─── */
-  const toggleSecretVisibility = (id: number) => {
-    setSecrets(prev => prev.map(s => s.id === id ? { ...s, masked: !s.masked } : s));
+  /* ─── Toggle Secret Visibility — revela vía retrieveSecret (query bajo demanda, deja READ en auditoría) ─── */
+  const toggleSecretVisibility = async (id: number) => {
+    if (revealedValues[id] !== undefined) {
+      setRevealedValues(prev => { const next = { ...prev }; delete next[id]; return next; });
+      return;
+    }
+    try {
+      const res = await utils.vault.retrieveSecret.fetch({ secretId: id });
+      setRevealedValues(prev => ({ ...prev, [id]: res.value }));
+    } catch (e) {
+      onVaultMutError(e);
+    }
+  };
+
+  const copySecret = async (id: number) => {
+    let value = revealedValues[id];
+    if (value === undefined) {
+      try {
+        const res = await utils.vault.retrieveSecret.fetch({ secretId: id });
+        value = res.value;
+        setRevealedValues(prev => ({ ...prev, [id]: res.value }));
+      } catch (e) {
+        onVaultMutError(e);
+        return;
+      }
+    }
+    navigator.clipboard.writeText(value);
+    toast.info("Copiado al portapapeles");
   };
 
   /* ─── Conversion ─── */
@@ -371,8 +415,9 @@ export default function IntegracionTab() {
                     )}
                     <span className="px-delta" style={{ color: statusColor(integration.status), background: `color-mix(in srgb, ${statusColor(integration.status)} 12%, transparent)` }}>{statusLabel(integration.status)}</span>
                   </div>
-                  {/* Línea 2: endpoint truncado */}
-                  <div className="truncate" style={{ fontFamily: "var(--px-mono)", fontSize: "var(--px-text-xs)", color: "var(--px-text-faint)", marginBottom: 4 }}>{integration.endpoint}</div>
+                  {/* Línea 2: endpoint truncado — clickeable, verificable */}
+                  <a href={integration.endpoint} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}
+                    className="truncate block hover:underline" style={{ fontFamily: "var(--px-mono)", fontSize: "var(--px-text-xs)", color: "var(--px-text-faint)", marginBottom: 4 }}>{integration.endpoint}</a>
                   {/* Línea 3: métricas + acciones */}
                   <div className="flex items-center gap-3">
                     <span style={{ fontFamily: "var(--px-mono)", fontSize: "var(--px-text-xs)", color: "var(--px-brand)" }}><span style={{ fontWeight: 700 }}>{integration.requestsToday.toLocaleString()}</span> {integration.metricaLabel ?? "req"}</span>
@@ -398,7 +443,7 @@ export default function IntegracionTab() {
                 <div className="flex items-center" style={{ gap: "var(--px-3)" }}>
                   <AlertTriangle size={16} style={{ color: "var(--px-crit)" }} />
                   <span style={{ fontSize: "var(--px-text-base)", color: "var(--px-crit)", fontWeight: 600 }}>{stats.expiredSecrets} secreto(s) expirado(s) requieren rotación inmediata</span>
-                  <button onClick={() => { secrets.filter(s => s.status === "expired").forEach(s => handleRotateSecret(s.id)); }} className="ml-auto px-3 py-1 rounded" style={{ background: "color-mix(in srgb, var(--px-crit) 15%, transparent)", border: "1px solid color-mix(in srgb, var(--px-crit) 30%, transparent)", color: "var(--px-crit)", fontSize: "var(--px-text-sm)", fontWeight: 600 }}>ROTAR TODOS</button>
+                  <button onClick={() => { secrets.filter(s => estadoSecreto(s) === "expired").forEach(s => handleRotateSecret(s.id)); }} className="ml-auto px-3 py-1 rounded" style={{ background: "color-mix(in srgb, var(--px-crit) 15%, transparent)", border: "1px solid color-mix(in srgb, var(--px-crit) 30%, transparent)", color: "var(--px-crit)", fontSize: "var(--px-text-sm)", fontWeight: 600 }}>ROTAR TODOS</button>
                 </div>
               </TacticalCard>
             )}
@@ -417,25 +462,33 @@ export default function IntegracionTab() {
                   </tr>
                 </thead>
                 <tbody>
-                  {secrets.map(secret => (
+                  {secrets.length === 0 && (
+                    <tr><td colSpan={8} className="px-3 py-4 text-center" style={{ color: "var(--px-text-faint)" }}>Bóveda vacía (o sin conexión a BD) — agrega un secreto para empezar.</td></tr>
+                  )}
+                  {secrets.map(secret => {
+                    const estado = estadoSecreto(secret);
+                    const dias = diasParaVencer(secret);
+                    const revelado = revealedValues[secret.id];
+                    return (
                     <tr key={secret.id} style={{ borderBottom: "1px solid var(--px-hairline)" }}>
-                      <td className="px-3 py-2.5"><div className="flex items-center gap-2"><Lock size={12} style={{ color: "var(--px-brand)" }} /><span style={{ color: "var(--px-text)", fontWeight: 600 }}>{secret.name}</span></div></td>
-                      <td className="px-3 py-2.5"><span className="px-2 py-0.5 rounded" style={{ background: "color-mix(in srgb, var(--px-brand) 10%, transparent)", color: "var(--px-brand)", fontSize: "var(--px-text-xs)" }}>{secret.type}</span></td>
-                      <td className="px-3 py-2.5" style={{ color: "var(--px-text)" }}>{secret.integration}</td>
-                      <td className="px-3 py-2.5" style={{ color: "var(--px-text-muted)", fontSize: "var(--px-text-xs)" }}>{secret.masked ? "••••••••••••" : secret.value}</td>
-                      <td className="px-3 py-2.5" style={{ color: "var(--px-text-muted)" }}>{secret.lastRotated}</td>
-                      <td className="px-3 py-2.5"><span style={{ color: secret.expiresIn <= 0 ? "var(--px-crit)" : secret.expiresIn <= 15 ? "var(--px-warn)" : "var(--px-ok)" }}>{secret.expiresIn <= 0 ? "EXPIRADO" : `${secret.expiresIn} días`}</span></td>
-                      <td className="px-3 py-2.5"><span className="px-2 py-0.5 rounded" style={{ background: `color-mix(in srgb, ${statusColor(secret.status)} 10%, transparent)`, color: statusColor(secret.status), fontSize: "var(--px-text-xs)", fontWeight: 600 }}>{statusLabel(secret.status)}</span></td>
+                      <td className="px-3 py-2.5"><div className="flex items-center gap-2"><Lock size={12} style={{ color: "var(--px-brand)" }} /><span style={{ color: "var(--px-text)", fontWeight: 600 }}>{secret.secretName}</span></div></td>
+                      <td className="px-3 py-2.5"><span className="px-2 py-0.5 rounded" style={{ background: "color-mix(in srgb, var(--px-brand) 10%, transparent)", color: "var(--px-brand)", fontSize: "var(--px-text-xs)" }}>{secret.secretType}</span></td>
+                      <td className="px-3 py-2.5" style={{ color: "var(--px-text)" }}>{nombreIntegracion(secret.integrationId)}</td>
+                      <td className="px-3 py-2.5" style={{ color: "var(--px-text-muted)", fontSize: "var(--px-text-xs)" }}>{revelado === undefined ? "••••••••••••" : revelado}</td>
+                      <td className="px-3 py-2.5" style={{ color: "var(--px-text-muted)" }}>{secret.lastRotatedAt ? new Date(secret.lastRotatedAt).toLocaleDateString("es-MX") : "—"}</td>
+                      <td className="px-3 py-2.5"><span style={{ color: dias === null ? "var(--px-text-muted)" : dias <= 0 ? "var(--px-crit)" : dias <= 15 ? "var(--px-warn)" : "var(--px-ok)" }}>{dias === null ? "Sin rotación programada" : dias <= 0 ? "EXPIRADO" : `${dias} días`}</span></td>
+                      <td className="px-3 py-2.5"><span className="px-2 py-0.5 rounded" style={{ background: `color-mix(in srgb, ${statusColor(estado)} 10%, transparent)`, color: statusColor(estado), fontSize: "var(--px-text-xs)", fontWeight: 600 }}>{statusLabel(estado)}</span></td>
                       <td className="px-3 py-2.5">
                         <div className="flex gap-1">
-                          <button onClick={() => toggleSecretVisibility(secret.id)} className="p-1 rounded" style={{ background: "color-mix(in srgb, var(--px-brand) 8%, transparent)" }} title={secret.masked ? "Mostrar" : "Ocultar"} aria-label={secret.masked ? "Mostrar secreto" : "Ocultar secreto"}>{secret.masked ? <Eye size={11} style={{ color: "var(--px-text-muted)" }} /> : <EyeOff size={11} style={{ color: "var(--px-brand)" }} />}</button>
-                          <button onClick={() => { navigator.clipboard.writeText(secret.value || ""); toast.info("Copiado al portapapeles"); addAudit("READ_SECRET", secret.integration); }} className="p-1 rounded" style={{ background: "color-mix(in srgb, var(--px-brand) 8%, transparent)" }} title="Copiar" aria-label="Copiar secreto"><Copy size={11} style={{ color: "var(--px-text-muted)" }} /></button>
+                          <button onClick={() => toggleSecretVisibility(secret.id)} className="p-1 rounded" style={{ background: "color-mix(in srgb, var(--px-brand) 8%, transparent)" }} title={revelado === undefined ? "Mostrar" : "Ocultar"} aria-label={revelado === undefined ? "Mostrar secreto" : "Ocultar secreto"}>{revelado === undefined ? <Eye size={11} style={{ color: "var(--px-text-muted)" }} /> : <EyeOff size={11} style={{ color: "var(--px-brand)" }} />}</button>
+                          <button onClick={() => copySecret(secret.id)} className="p-1 rounded" style={{ background: "color-mix(in srgb, var(--px-brand) 8%, transparent)" }} title="Copiar" aria-label="Copiar secreto"><Copy size={11} style={{ color: "var(--px-text-muted)" }} /></button>
                           <button onClick={() => handleRotateSecret(secret.id)} className="p-1 rounded" style={{ background: "color-mix(in srgb, var(--px-brand) 8%, transparent)" }} title="Rotar" aria-label="Rotar secreto"><RefreshCw size={11} style={{ color: "var(--px-brand)" }} /></button>
                           <button onClick={() => handleDeleteSecret(secret.id)} className="p-1 rounded" style={{ background: "color-mix(in srgb, var(--px-crit) 8%, transparent)" }} title="Eliminar" aria-label="Eliminar secreto"><Trash2 size={11} style={{ color: "var(--px-crit)" }} /></button>
                         </div>
                       </td>
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
               </div>
@@ -448,21 +501,24 @@ export default function IntegracionTab() {
           <div className="space-y-4">
             <div className="flex items-center justify-between flex-wrap gap-2">
               <span className="px-section-title">REGISTRO DE AUDITORÍA ({auditLogs.length} entradas)</span>
-              <button onClick={() => { const csv = ["Timestamp,Usuario,Acción,Integración,Estado,IP", ...auditLogs.map(l => `${l.timestamp},${l.user},${l.action},${l.integration},${l.status},${l.ip}`)].join("\n"); const blob = new Blob([csv], { type: "text/csv" }); const url = URL.createObjectURL(blob); const a = document.createElement("a"); a.href = url; a.download = "auditoria_integraciones.csv"; a.click(); URL.revokeObjectURL(url); toast.success("Auditoría exportada"); }} className="flex items-center gap-1 px-3 py-1.5 rounded" style={{ background: "color-mix(in srgb, var(--px-brand) 10%, transparent)", border: "1px solid color-mix(in srgb, var(--px-brand) 20%, transparent)", color: "var(--px-brand)", fontSize: "var(--px-text-sm)", fontWeight: 600 }}><Download size={12} /> EXPORTAR</button>
+              <button onClick={() => { const csv = ["Timestamp,Usuario,Acción,Integración,Estado,IP", ...auditLogs.map(l => `${l.timestamp},Usuario #${l.userId},${l.action},${nombreIntegracion(l.integrationId)},${l.status},${l.ipAddress ?? ""}`)].join("\n"); const blob = new Blob([csv], { type: "text/csv" }); const url = URL.createObjectURL(blob); const a = document.createElement("a"); a.href = url; a.download = "auditoria_vault.csv"; a.click(); URL.revokeObjectURL(url); toast.success("Auditoría exportada"); }} className="flex items-center gap-1 px-3 py-1.5 rounded" style={{ background: "color-mix(in srgb, var(--px-brand) 10%, transparent)", border: "1px solid color-mix(in srgb, var(--px-brand) 20%, transparent)", color: "var(--px-brand)", fontSize: "var(--px-text-sm)", fontWeight: 600 }}><Download size={12} /> EXPORTAR</button>
             </div>
             <TacticalCard className="overflow-hidden">
               <div className="overflow-x-auto">
               <table className="w-full" style={{ fontFamily: "var(--px-mono)", fontSize: "var(--px-text-sm)", minWidth: "700px" }}>
                 <thead><tr style={{ background: "color-mix(in srgb, var(--px-brand) 4%, transparent)" }}>{["TIMESTAMP", "USUARIO", "ACCIÓN", "INTEGRACIÓN", "ESTADO", "IP"].map(h => (<th key={h} className="px-4 py-2 text-left" style={{ color: "var(--px-text-muted)", fontSize: "var(--px-text-xs)", letterSpacing: "0.08em", fontWeight: 600 }}>{h}</th>))}</tr></thead>
                 <tbody>
+                  {auditLogs.length === 0 && (
+                    <tr><td colSpan={6} className="px-4 py-4 text-center" style={{ color: "var(--px-text-faint)" }}>Sin actividad registrada todavía (o sin conexión a BD).</td></tr>
+                  )}
                   {auditLogs.map(entry => (
                     <tr key={entry.id} style={{ borderBottom: "1px solid var(--px-hairline)" }}>
-                      <td className="px-4 py-2.5" style={{ color: "var(--px-text-muted)" }}>{entry.timestamp}</td>
-                      <td className="px-4 py-2.5" style={{ color: "var(--px-text)" }}>{entry.user}</td>
+                      <td className="px-4 py-2.5" style={{ color: "var(--px-text-muted)" }}>{new Date(entry.timestamp).toLocaleString("es-MX")}</td>
+                      <td className="px-4 py-2.5" style={{ color: "var(--px-text)" }}>Usuario #{entry.userId}</td>
                       <td className="px-4 py-2.5"><span className="px-2 py-0.5 rounded" style={{ background: "color-mix(in srgb, var(--px-brand) 10%, transparent)", color: "var(--px-brand)", fontSize: "var(--px-text-xs)" }}>{entry.action}</span></td>
-                      <td className="px-4 py-2.5" style={{ color: "var(--px-text)" }}>{entry.integration}</td>
-                      <td className="px-4 py-2.5"><span className="px-2 py-0.5 rounded" style={{ background: `color-mix(in srgb, ${statusColor(entry.status)} 10%, transparent)`, color: statusColor(entry.status), fontSize: "var(--px-text-xs)", fontWeight: 600 }}>{statusLabel(entry.status)}</span></td>
-                      <td className="px-4 py-2.5" style={{ color: "var(--px-text-muted)" }}>{entry.ip}</td>
+                      <td className="px-4 py-2.5" style={{ color: "var(--px-text)" }}>{nombreIntegracion(entry.integrationId)}</td>
+                      <td className="px-4 py-2.5"><span className="px-2 py-0.5 rounded" style={{ background: `color-mix(in srgb, ${statusColor(entry.status.toLowerCase())} 10%, transparent)`, color: statusColor(entry.status.toLowerCase()), fontSize: "var(--px-text-xs)", fontWeight: 600 }}>{statusLabel(entry.status.toLowerCase())}</span></td>
+                      <td className="px-4 py-2.5" style={{ color: "var(--px-text-muted)" }}>{entry.ipAddress ?? "—"}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -597,7 +653,7 @@ export default function IntegracionTab() {
                 {/* Metadata grid */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-px rounded-md overflow-hidden mb-4" style={{ border: "1px solid var(--px-hairline)" }}>
                   {[
-                    { l: "Endpoint", v: selectedIntegration.endpoint },
+                    { l: "Endpoint", v: selectedIntegration.endpoint, link: true },
                     { l: "Autenticación", v: selectedIntegration.authMethod },
                     { l: "Rate limit", v: selectedIntegration.rateLimit || "—" },
                     { l: "Timeout", v: selectedIntegration.timeout ? `${selectedIntegration.timeout / 1000}s` : "—" },
@@ -606,7 +662,11 @@ export default function IntegracionTab() {
                   ].map(item => (
                     <div key={item.l} style={{ padding: "var(--px-3)", background: "var(--px-bg)" }}>
                       <div className="px-eyebrow">{item.l}</div>
-                      <div className="truncate" style={{ fontFamily: "var(--px-mono)", fontSize: "var(--px-text-sm)", color: "var(--px-text)", fontWeight: 500, marginTop: 1 }}>{item.v}</div>
+                      {item.link ? (
+                        <a href={item.v} target="_blank" rel="noopener noreferrer" className="truncate block hover:underline" style={{ fontFamily: "var(--px-mono)", fontSize: "var(--px-text-sm)", color: "var(--px-brand)", fontWeight: 500, marginTop: 1 }}>{item.v}</a>
+                      ) : (
+                        <div className="truncate" style={{ fontFamily: "var(--px-mono)", fontSize: "var(--px-text-sm)", color: "var(--px-text)", fontWeight: 500, marginTop: 1 }}>{item.v}</div>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -662,10 +722,10 @@ export default function IntegracionTab() {
               <div><label className="px-label">Nombre del secreto *</label><input value={newSecret.name} onChange={e => setNewSecret(p => ({ ...p, name: e.target.value }))} className="px-input" placeholder="Ej: SESNSP_API_KEY_V2" /></div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div><label className="px-label">Tipo</label><select value={newSecret.type} onChange={e => setNewSecret(p => ({ ...p, type: e.target.value }))} className="px-input"><option value="API_KEY">API Key</option><option value="OAUTH_TOKEN">OAuth Token</option><option value="BASIC_AUTH">Basic Auth</option><option value="CERTIFICATE">Certificado</option><option value="SSH_KEY">SSH Key</option></select></div>
-                <div><label className="px-label">Integración</label><select value={newSecret.integration} onChange={e => setNewSecret(p => ({ ...p, integration: e.target.value }))} className="px-input"><option value="">General</option>{integrations.map(i => <option key={i.id} value={i.name}>{i.name}</option>)}</select></div>
+                <div><label className="px-label">Integración</label><select value={newSecret.integration} onChange={e => setNewSecret(p => ({ ...p, integration: e.target.value }))} className="px-input"><option value="">General</option>{integrations.map(i => <option key={i.id} value={i.id}>{i.name}</option>)}</select></div>
               </div>
               <div><label className="px-label">Valor del secreto *</label><input type="password" value={newSecret.value} onChange={e => setNewSecret(p => ({ ...p, value: e.target.value }))} className="px-input" placeholder="Ingrese el valor" /></div>
-              <div><label className="px-label">Expiración (días)</label><input type="number" value={newSecret.expiresInDays} onChange={e => setNewSecret(p => ({ ...p, expiresInDays: e.target.value }))} className="px-input" placeholder="90" /></div>
+              <div><label className="px-label">Rotar cada (días)</label><input type="number" value={newSecret.expiresInDays} onChange={e => setNewSecret(p => ({ ...p, expiresInDays: e.target.value }))} className="px-input" placeholder="90" /></div>
             </div>
             <div className="flex gap-2 mt-4">
               <button onClick={() => setShowNewSecretDialog(false)} className="px-btn px-btn-secondary flex-1">Cancelar</button>

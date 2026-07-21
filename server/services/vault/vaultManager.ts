@@ -1,8 +1,14 @@
 /**
  * Vault Manager
- * Manages secret storage, retrieval, and lifecycle
+ * Manages secret storage, retrieval, and lifecycle — persistido en MySQL
+ * (secret_vault / secret_audit_log / secret_rotation_history, ver
+ * drizzle/schema.ts). Antes vivía en un Map/Array en memoria del proceso
+ * ("in-memory storage for demo") — se perdía todo al reiniciar el servidor.
  */
 
+import { and, desc, eq, lte } from "drizzle-orm";
+import { getDb } from "../../config/db";
+import { secretVault, secretAuditLog, secretRotationHistory } from "../../../drizzle/schema";
 import { EncryptionService, getEncryptionService } from "./encryptionService";
 import { logger } from "../../_core/logger";
 
@@ -42,10 +48,36 @@ export interface AuditLogEntry {
   timestamp: Date;
 }
 
-// In-memory storage for demo (will be replaced with database)
-const secretsStore: Map<number, any> = new Map();
-const auditLogsStore: Array<AuditLogEntry> = [];
-let secretIdCounter = 1;
+function toSecretInfo(row: typeof secretVault.$inferSelect): SecretInfo {
+  return {
+    id: row.id,
+    integrationId: row.integrationId,
+    secretName: row.secretName,
+    secretType: row.secretType,
+    expiresAt: row.expiresAt ?? undefined,
+    rotationInterval: row.rotationInterval ?? undefined,
+    lastRotatedAt: row.lastRotatedAt ?? undefined,
+    nextRotationAt: row.nextRotationAt ?? undefined,
+    isActive: row.isActive === 1,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+  };
+}
+
+function toAuditEntry(row: typeof secretAuditLog.$inferSelect): AuditLogEntry {
+  return {
+    id: row.id,
+    secretId: row.secretId,
+    integrationId: row.integrationId,
+    userId: row.userId,
+    action: row.action,
+    status: row.status,
+    reason: row.reason ?? undefined,
+    ipAddress: row.ipAddress ?? undefined,
+    userAgent: row.userAgent ?? undefined,
+    timestamp: row.timestamp,
+  };
+}
 
 export class VaultManager {
   private encryptionService: EncryptionService;
@@ -58,228 +90,184 @@ export class VaultManager {
    * Store a secret in the vault
    */
   async storeSecret(config: SecretConfig, userId: number, ipAddress?: string): Promise<SecretInfo> {
-    try {
-      const encrypted = this.encryptionService.encrypt(config.secretValue);
-      const nextRotationAt = config.rotationInterval ? new Date(Date.now() + config.rotationInterval * 24 * 60 * 60 * 1000) : null;
-      const now = new Date();
+    const db = await getDb();
+    if (!db) throw new Error("Vault no disponible (sin conexión a BD)");
 
-      const secretId = secretIdCounter++;
-      const secret = {
-        id: secretId,
-        integrationId: config.integrationId,
-        secretName: config.secretName,
-        secretType: config.secretType,
-        encryptedValue: encrypted.encryptedValue,
-        encryptionAlgorithm: encrypted.algorithm,
-        encryptionIv: encrypted.iv,
-        encryptionAuthTag: encrypted.authTag,
-        expiresAt: config.expiresAt || null,
-        rotationInterval: config.rotationInterval || null,
-        lastRotatedAt: now,
-        nextRotationAt: nextRotationAt,
-        isActive: true,
-        createdBy: userId,
-        createdAt: now,
-        updatedAt: now,
-      };
+    const encrypted = this.encryptionService.encrypt(config.secretValue);
+    const nextRotationAt = config.rotationInterval ? new Date(Date.now() + config.rotationInterval * 24 * 60 * 60 * 1000) : null;
+    const now = new Date();
 
-      secretsStore.set(secretId, secret);
+    const result = await db.insert(secretVault).values({
+      integrationId: config.integrationId,
+      secretName: config.secretName,
+      secretType: config.secretType,
+      encryptedValue: encrypted.encryptedValue,
+      encryptionAlgorithm: encrypted.algorithm,
+      encryptionIv: encrypted.iv,
+      encryptionAuthTag: encrypted.authTag,
+      expiresAt: config.expiresAt,
+      rotationInterval: config.rotationInterval,
+      lastRotatedAt: now,
+      nextRotationAt,
+      isActive: 1,
+      createdBy: userId,
+    });
+    const secretId = result[0].insertId;
 
-      await this.logAuditEvent({
-        secretId,
-        integrationId: config.integrationId,
-        userId,
-        action: "CREATE",
-        status: "SUCCESS",
-        ipAddress,
-      });
+    await this.logAuditEvent({ secretId, integrationId: config.integrationId, userId, action: "CREATE", status: "SUCCESS", ipAddress });
 
-      return this.getSecretInfo(secretId);
-    } catch (error) {
-      throw new Error(`Failed to store secret: ${error instanceof Error ? error.message : "Unknown error"}`);
-    }
+    return this.getSecretInfo(secretId);
   }
 
   /**
    * Retrieve a secret from the vault
    */
   async retrieveSecret(secretId: number, userId: number, ipAddress?: string): Promise<string> {
-    try {
-      const secret = secretsStore.get(secretId);
+    const db = await getDb();
+    if (!db) throw new Error("Vault no disponible (sin conexión a BD)");
 
-      if (!secret) {
-        await this.logAuditEvent({
-          secretId,
-          integrationId: "unknown",
-          userId,
-          action: "READ",
-          status: "FAILED",
-          reason: "Secret not found",
-          ipAddress,
-        });
-        throw new Error("Secret not found");
-      }
+    const [secret] = await db.select().from(secretVault).where(eq(secretVault.id, secretId));
 
-      if (!secret.isActive) {
-        await this.logAuditEvent({
-          secretId,
-          integrationId: secret.integrationId,
-          userId,
-          action: "READ",
-          status: "DENIED",
-          reason: "Secret is inactive",
-          ipAddress,
-        });
-        throw new Error("Secret is inactive");
-      }
-
-      if (secret.expiresAt && new Date() > secret.expiresAt) {
-        await this.logAuditEvent({
-          secretId,
-          integrationId: secret.integrationId,
-          userId,
-          action: "READ",
-          status: "DENIED",
-          reason: "Secret has expired",
-          ipAddress,
-        });
-        throw new Error("Secret has expired");
-      }
-
-      const decrypted = this.encryptionService.decrypt({
-        encryptedValue: secret.encryptedValue,
-        iv: secret.encryptionIv,
-        authTag: secret.encryptionAuthTag,
-        algorithm: secret.encryptionAlgorithm,
-      });
-
-      await this.logAuditEvent({
-        secretId,
-        integrationId: secret.integrationId,
-        userId,
-        action: "READ",
-        status: "SUCCESS",
-        ipAddress,
-      });
-
-      return decrypted.value;
-    } catch (error) {
-      throw new Error(`Failed to retrieve secret: ${error instanceof Error ? error.message : "Unknown error"}`);
+    if (!secret) {
+      await this.logAuditEvent({ secretId, integrationId: "unknown", userId, action: "READ", status: "FAILED", reason: "Secret not found", ipAddress });
+      throw new Error("Secret not found");
     }
+
+    if (secret.isActive !== 1) {
+      await this.logAuditEvent({ secretId, integrationId: secret.integrationId, userId, action: "READ", status: "DENIED", reason: "Secret is inactive", ipAddress });
+      throw new Error("Secret is inactive");
+    }
+
+    if (secret.expiresAt && new Date() > secret.expiresAt) {
+      await this.logAuditEvent({ secretId, integrationId: secret.integrationId, userId, action: "READ", status: "DENIED", reason: "Secret has expired", ipAddress });
+      throw new Error("Secret has expired");
+    }
+
+    const decrypted = this.encryptionService.decrypt({
+      encryptedValue: secret.encryptedValue,
+      iv: secret.encryptionIv,
+      authTag: secret.encryptionAuthTag,
+      algorithm: secret.encryptionAlgorithm,
+    });
+
+    await this.logAuditEvent({ secretId, integrationId: secret.integrationId, userId, action: "READ", status: "SUCCESS", ipAddress });
+
+    return decrypted.value;
   }
 
   /**
-   * Update a secret
+   * Update a secret's value (edición directa, sin registrar historial de rotación)
    */
   async updateSecret(secretId: number, newValue: string, userId: number, ipAddress?: string): Promise<void> {
-    try {
-      const secret = secretsStore.get(secretId);
+    const db = await getDb();
+    if (!db) throw new Error("Vault no disponible (sin conexión a BD)");
 
-      if (!secret) {
-        throw new Error("Secret not found");
-      }
+    const [secret] = await db.select().from(secretVault).where(eq(secretVault.id, secretId));
+    if (!secret) throw new Error("Secret not found");
 
-      const encrypted = this.encryptionService.encrypt(newValue);
+    const encrypted = this.encryptionService.encrypt(newValue);
+    await db.update(secretVault).set({
+      encryptedValue: encrypted.encryptedValue,
+      encryptionIv: encrypted.iv,
+      encryptionAuthTag: encrypted.authTag,
+    }).where(eq(secretVault.id, secretId));
 
-      secret.encryptedValue = encrypted.encryptedValue;
-      secret.encryptionIv = encrypted.iv;
-      secret.encryptionAuthTag = encrypted.authTag;
-      secret.updatedAt = new Date();
-
-      secretsStore.set(secretId, secret);
-
-      await this.logAuditEvent({
-        secretId,
-        integrationId: secret.integrationId,
-        userId,
-        action: "UPDATE",
-        status: "SUCCESS",
-        ipAddress,
-      });
-    } catch (error) {
-      throw new Error(`Failed to update secret: ${error instanceof Error ? error.message : "Unknown error"}`);
-    }
+    await this.logAuditEvent({ secretId, integrationId: secret.integrationId, userId, action: "UPDATE", status: "SUCCESS", ipAddress });
   }
 
   /**
-   * Delete a secret
+   * Rota un secreto: genera nuevo valor cifrado, actualiza lastRotatedAt/
+   * nextRotationAt y deja registro forense en secret_rotation_history
+   * (hashes del valor viejo/nuevo, nunca el valor en claro).
+   */
+  async rotateSecret(secretId: number, newValue: string, userId: number, ipAddress?: string): Promise<SecretInfo> {
+    const db = await getDb();
+    if (!db) throw new Error("Vault no disponible (sin conexión a BD)");
+
+    const [secret] = await db.select().from(secretVault).where(eq(secretVault.id, secretId));
+    if (!secret) throw new Error("Secret not found");
+
+    const oldValue = this.encryptionService.decrypt({
+      encryptedValue: secret.encryptedValue,
+      iv: secret.encryptionIv,
+      authTag: secret.encryptionAuthTag,
+      algorithm: secret.encryptionAlgorithm,
+    });
+    const encrypted = this.encryptionService.encrypt(newValue);
+    const now = new Date();
+    const nextRotationAt = secret.rotationInterval ? new Date(now.getTime() + secret.rotationInterval * 24 * 60 * 60 * 1000) : null;
+
+    await db.update(secretVault).set({
+      encryptedValue: encrypted.encryptedValue,
+      encryptionIv: encrypted.iv,
+      encryptionAuthTag: encrypted.authTag,
+      lastRotatedAt: now,
+      nextRotationAt,
+    }).where(eq(secretVault.id, secretId));
+
+    await db.insert(secretRotationHistory).values({
+      secretId,
+      integrationId: secret.integrationId,
+      rotationType: "MANUAL",
+      oldValueHash: this.encryptionService.hash(oldValue.value),
+      newValueHash: this.encryptionService.hash(newValue),
+      rotatedBy: userId,
+      status: "COMPLETED",
+      completedAt: now,
+    });
+
+    await this.logAuditEvent({ secretId, integrationId: secret.integrationId, userId, action: "ROTATE", status: "SUCCESS", ipAddress });
+
+    return this.getSecretInfo(secretId);
+  }
+
+  /**
+   * Delete a secret (soft delete — isActive=false, se conserva para auditoría)
    */
   async deleteSecret(secretId: number, userId: number, ipAddress?: string): Promise<void> {
-    try {
-      const secret = secretsStore.get(secretId);
+    const db = await getDb();
+    if (!db) throw new Error("Vault no disponible (sin conexión a BD)");
 
-      if (!secret) {
-        throw new Error("Secret not found");
-      }
+    const [secret] = await db.select().from(secretVault).where(eq(secretVault.id, secretId));
+    if (!secret) throw new Error("Secret not found");
 
-      secret.isActive = false;
-      secret.updatedAt = new Date();
+    await db.update(secretVault).set({ isActive: 0 }).where(eq(secretVault.id, secretId));
 
-      secretsStore.set(secretId, secret);
-
-      await this.logAuditEvent({
-        secretId,
-        integrationId: secret.integrationId,
-        userId,
-        action: "DELETE",
-        status: "SUCCESS",
-        ipAddress,
-      });
-    } catch (error) {
-      throw new Error(`Failed to delete secret: ${error instanceof Error ? error.message : "Unknown error"}`);
-    }
+    await this.logAuditEvent({ secretId, integrationId: secret.integrationId, userId, action: "DELETE", status: "SUCCESS", ipAddress });
   }
 
   /**
    * Get secret metadata
    */
   async getSecretInfo(secretId: number): Promise<SecretInfo> {
-    const secret = secretsStore.get(secretId);
+    const db = await getDb();
+    if (!db) throw new Error("Vault no disponible (sin conexión a BD)");
 
-    if (!secret) {
-      throw new Error("Secret not found");
-    }
-
-    return {
-      id: secret.id,
-      integrationId: secret.integrationId,
-      secretName: secret.secretName,
-      secretType: secret.secretType,
-      expiresAt: secret.expiresAt || undefined,
-      rotationInterval: secret.rotationInterval || undefined,
-      lastRotatedAt: secret.lastRotatedAt || undefined,
-      nextRotationAt: secret.nextRotationAt || undefined,
-      isActive: secret.isActive,
-      createdAt: secret.createdAt,
-      updatedAt: secret.updatedAt,
-    };
+    const [secret] = await db.select().from(secretVault).where(eq(secretVault.id, secretId));
+    if (!secret) throw new Error("Secret not found");
+    return toSecretInfo(secret);
   }
 
   /**
    * List all secrets for an integration
    */
   async listSecrets(integrationId: string): Promise<SecretInfo[]> {
-    const secrets: SecretInfo[] = [];
+    const db = await getDb();
+    if (!db) return [];
 
-    secretsStore.forEach((secret) => {
-      if (secret.integrationId === integrationId) {
-        secrets.push({
-          id: secret.id,
-          integrationId: secret.integrationId,
-          secretName: secret.secretName,
-          secretType: secret.secretType,
-          expiresAt: secret.expiresAt || undefined,
-          rotationInterval: secret.rotationInterval || undefined,
-          lastRotatedAt: secret.lastRotatedAt || undefined,
-          nextRotationAt: secret.nextRotationAt || undefined,
-          isActive: secret.isActive,
-           createdAt: secret.createdAt,
-        updatedAt: secret.updatedAt,
-      });
-    }
-    });
+    const rows = await db.select().from(secretVault).where(eq(secretVault.integrationId, integrationId));
+    return rows.map(toSecretInfo);
+  }
 
-    return secrets;
+  /**
+   * List all secrets across all integrations (tabla "Credenciales almacenadas")
+   */
+  async listAllSecrets(): Promise<SecretInfo[]> {
+    const db = await getDb();
+    if (!db) return [];
+
+    const rows = await db.select().from(secretVault).orderBy(desc(secretVault.createdAt));
+    return rows.map(toSecretInfo);
   }
 
   /**
@@ -289,14 +277,15 @@ export class VaultManager {
     secretId: number;
     integrationId: string;
     userId: number;
-    action: string;
-    status: string;
+    action: "CREATE" | "READ" | "UPDATE" | "DELETE" | "ROTATE" | "EXPORT";
+    status: "SUCCESS" | "FAILED" | "DENIED";
     reason?: string;
     ipAddress?: string;
   }): Promise<void> {
     try {
-      const logEntry: AuditLogEntry = {
-        id: auditLogsStore.length + 1,
+      const db = await getDb();
+      if (!db) return;
+      await db.insert(secretAuditLog).values({
         secretId: event.secretId,
         integrationId: event.integrationId,
         userId: event.userId,
@@ -304,11 +293,7 @@ export class VaultManager {
         status: event.status,
         reason: event.reason,
         ipAddress: event.ipAddress,
-        userAgent: undefined,
-        timestamp: new Date(),
-      };
-
-      auditLogsStore.push(logEntry);
+      });
     } catch (error) {
       logger.error("Failed to log audit event:", error);
     }
@@ -318,47 +303,40 @@ export class VaultManager {
    * Get audit logs for a secret
    */
   async getAuditLogs(secretId: number, limit: number = 50): Promise<AuditLogEntry[]> {
-    return auditLogsStore
-      .filter((log) => log.secretId === secretId)
-      .sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())
-      .slice(0, limit);
+    const db = await getDb();
+    if (!db) return [];
+
+    const rows = await db.select().from(secretAuditLog)
+      .where(eq(secretAuditLog.secretId, secretId))
+      .orderBy(desc(secretAuditLog.timestamp))
+      .limit(limit);
+    return rows.map(toAuditEntry);
   }
 
   /**
    * Get all audit logs
    */
   async getAllAuditLogs(limit: number = 100): Promise<AuditLogEntry[]> {
-    return auditLogsStore
-      .sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())
-      .slice(0, limit);
+    const db = await getDb();
+    if (!db) return [];
+
+    const rows = await db.select().from(secretAuditLog)
+      .orderBy(desc(secretAuditLog.timestamp))
+      .limit(limit);
+    return rows.map(toAuditEntry);
   }
 
   /**
    * Check if secrets need rotation
    */
   async getSecretsNeedingRotation(): Promise<SecretInfo[]> {
-    const secretsNeedingRotation: SecretInfo[] = [];
-    const now = new Date();
+    const db = await getDb();
+    if (!db) return [];
 
-    secretsStore.forEach((secret) => {
-      if (secret.isActive && secret.nextRotationAt && new Date(secret.nextRotationAt) <= now) {
-        secretsNeedingRotation.push({
-          id: secret.id,
-          integrationId: secret.integrationId,
-          secretName: secret.secretName,
-          secretType: secret.secretType,
-          expiresAt: secret.expiresAt || undefined,
-          rotationInterval: secret.rotationInterval || undefined,
-          lastRotatedAt: secret.lastRotatedAt || undefined,
-          nextRotationAt: secret.nextRotationAt || undefined,
-          isActive: secret.isActive,
-           createdAt: secret.createdAt,
-        updatedAt: secret.updatedAt,
-      });
-    }
-    });
-
-    return secretsNeedingRotation;
+    const rows = await db.select().from(secretVault).where(
+      and(eq(secretVault.isActive, 1), lte(secretVault.nextRotationAt, new Date())),
+    );
+    return rows.map(toSecretInfo);
   }
 }
 

@@ -376,3 +376,20 @@ export const riesgoClasificacionMetrics = mysqlTable("riesgo_clasificacion_metri
 
 export type RiesgoClasificacionMetric = typeof riesgoClasificacionMetrics.$inferSelect;
 export type InsertRiesgoClasificacionMetric = typeof riesgoClasificacionMetrics.$inferInsert;
+
+// ── Población municipal — INEGI, Banco de Indicadores (indicador 1002000001,
+// Censo de Población y Vivienda 2020). Dato de contexto, no cambia seguido
+// (el censo no se actualiza cada mes) — se sobreescribe completo cada vez
+// que corre scripts/load-poblacion-inegi.ts, mismo patrón idempotente que
+// el resto de la carga de datos.
+export const poblacionMunicipal = mysqlTable("poblacion_municipal", {
+  id: int("id").autoincrement().primaryKey(),
+  cveMuni: varchar("cve_muni", { length: 5 }).notNull().unique(),
+  municipio: varchar("municipio", { length: 128 }).notNull(),
+  poblacion: int("poblacion").notNull(),
+  anioCenso: int("anio_censo").notNull(),
+  actualizadoEn: timestamp("actualizado_en").defaultNow().notNull(),
+});
+
+export type PoblacionMunicipal = typeof poblacionMunicipal.$inferSelect;
+export type InsertPoblacionMunicipal = typeof poblacionMunicipal.$inferInsert;

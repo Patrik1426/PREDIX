@@ -5,40 +5,27 @@
 // ============================================================
 
 import { useState, useRef, useEffect, useCallback } from "react";
-import { CHATBOT_RESPONSES } from "@/data/securityData";
+import { trpc } from "@/lib/trpc";
 import { Send, Mic, MicOff, Bot, User, Trash2, Volume2, VolumeX, Brain, Zap, Info, X } from "lucide-react";
 
 interface Message { id: string; role: "user" | "bot"; content: string; timestamp: Date; }
 
 const QUICK_QUERIES = [
-  "Alertas activas",
-  "Incidentes de hoy",
-  "Predicción de riesgo",
-  "Estadísticas",
-  "Info Ecatepec",
-  "Ayuda",
+  "¿Cuántas alertas activas hay?",
+  "¿Cómo está la incidencia delictiva?",
+  "¿Qué puedes hacer?",
 ];
+
+const BIENVENIDA = "Bienvenido al sistema ATENEA. Soy tu asistente táctico para el Estado de México — pregúntame por alertas activas o incidencia delictiva.";
 
 function formatMd(text: string): string {
   return text.replace(/\*\*(.*?)\*\*/g, '<strong style="color:var(--px-text)">$1</strong>').replace(/\n/g, "<br/>");
 }
 
-function getResponse(input: string): string {
-  const l = input.toLowerCase();
-  if (l.includes("alerta")) return CHATBOT_RESPONSES.alertas;
-  if (l.includes("incidente")) return CHATBOT_RESPONSES.incidentes;
-  if (l.includes("ecatepec")) return CHATBOT_RESPONSES.ecatepec;
-  if (l.includes("predicci") || l.includes("riesgo")) return CHATBOT_RESPONSES.prediccion;
-  if (l.includes("estadística") || l.includes("estadistica") || l.includes("dato")) return CHATBOT_RESPONSES.estadisticas;
-  if (l.includes("toluca")) return CHATBOT_RESPONSES.toluca;
-  if (l.includes("ayuda") || l.includes("help") || l.includes("qué puedes") || l.includes("que puedes")) return CHATBOT_RESPONSES.ayuda;
-  if (l.includes("hola") || l.includes("buenos") || l.includes("buenas")) return "¡Bienvenido al sistema ATENEA! Soy tu asistente de inteligencia táctica para el Estado de México. ¿En qué puedo ayudarte?";
-  return CHATBOT_RESPONSES.default;
-}
-
 export default function ChatbotTab() {
-  const [messages, setMessages] = useState<Message[]>([{ id: "init", role: "bot", content: CHATBOT_RESPONSES.default, timestamp: new Date() }]);
+  const [messages, setMessages] = useState<Message[]>([{ id: "init", role: "bot", content: BIENVENIDA, timestamp: new Date() }]);
   const [input, setInput] = useState("");
+  const chatMutation = trpc.ai.chat.useMutation();
   const [isListening, setIsListening] = useState(false);
   const [isTyping, setIsTyping] = useState(false);
   const [speechEnabled, setSpeechEnabled] = useState(false);
@@ -79,17 +66,33 @@ export default function ChatbotTab() {
   const sendMessage = useCallback(async (text?: string) => {
     const t = text || input.trim();
     if (!t) return;
+    const historyForServer = messages
+      .filter(m => m.id !== "init")
+      .map(m => ({ role: (m.role === "bot" ? "assistant" : "user") as "assistant" | "user", content: m.content }));
     setMessages(prev => [...prev, { id: Date.now().toString(), role: "user", content: t, timestamp: new Date() }]);
     setInput(""); setIsTyping(true);
-    await new Promise(r => setTimeout(r, 800 + Math.random() * 600));
-    const resp = getResponse(t);
+
+    let resp: string;
+    try {
+      const result = await chatMutation.mutateAsync({ messages: [...historyForServer, { role: "user", content: t }] });
+      if (!result.success || !result.reply) {
+        resp = "No pude generar una respuesta en este momento. Intenta de nuevo en unos segundos.";
+      } else {
+        resp = result.reply;
+      }
+    } catch (error: any) {
+      resp = error?.data?.code === "FORBIDDEN"
+        ? "Tu rol no tiene permiso para usar el asistente."
+        : "No pude conectar con el asistente. Intenta de nuevo en unos segundos.";
+    }
+
     if (speechEnabled && "speechSynthesis" in window) {
       const u = new SpeechSynthesisUtterance(resp.replace(/\*\*(.*?)\*\*/g, "$1").replace(/\n/g, " "));
       u.lang = "es-MX"; u.rate = 0.9; window.speechSynthesis.speak(u);
     }
     setIsTyping(false);
     setMessages(prev => [...prev, { id: (Date.now() + 1).toString(), role: "bot", content: resp, timestamp: new Date() }]);
-  }, [input, speechEnabled]);
+  }, [input, speechEnabled, messages, chatMutation]);
 
   const fmt = (d: Date) => d.toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" });
 
@@ -114,7 +117,7 @@ export default function ChatbotTab() {
           }}>
             {speechEnabled ? <Volume2 size={12} /> : <VolumeX size={12} />}
           </button>
-          <button onClick={() => setMessages([{ id: "init-" + Date.now(), role: "bot", content: CHATBOT_RESPONSES.default, timestamp: new Date() }])} title="Limpiar" style={{
+          <button onClick={() => setMessages([{ id: "init-" + Date.now(), role: "bot", content: BIENVENIDA, timestamp: new Date() }])} title="Limpiar" style={{
             padding: 4, borderRadius: 4, border: "none", cursor: "pointer", color: "var(--px-text-faint)", background: "transparent",
           }}>
             <Trash2 size={13} />

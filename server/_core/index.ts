@@ -4,7 +4,7 @@ import { createServer } from "http";
 import net from "net";
 import cors from "cors";
 import helmet from "helmet";
-import rateLimit from "express-rate-limit";
+import rateLimit, { ipKeyGenerator } from "express-rate-limit";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
 import { appRouter } from "../routers";
 import { createContext } from "./auth/context";
@@ -89,6 +89,50 @@ async function startServer() {
     legacyHeaders: false,
   });
   app.use("/api/", apiLimiter);
+
+  // El asistente IA depende de la capa gratuita de Google (Gemini),
+  // compartida entre todos los usuarios de PREDIX — un límite propio, más
+  // estricto que el apiLimiter general, evita que un solo usuario/script
+  // agote la cuota compartida o la use para exfiltrar datos con preguntas
+  // repetidas. OJO: la cuota diaria real varía MUCHO por modelo — verificado
+  // en carne propia que gemini-3.5-flash solo daba 20 solicitudes/día en
+  // capa gratuita (no los "1,500/día" que la documentación de terceros
+  // sugería); se migró a gemini-3.1-flash-lite por eso (ver CLAUDE.md Issue
+  // #20). Si `ai.chat` empieza a fallar con 429 "RESOURCE_EXHAUSTED" seguido,
+  // el mensaje de error de Google (logueado por chatAssistant.ts) dice la
+  // cuota real vigente — confiar en ese error, no en un número fijo aquí.
+  //
+  // Se limita por USUARIO autenticado, no por IP: varios operadores de un
+  // mismo centro de mando comparten la IP de oficina (NAT) — limitar por IP
+  // los bloquearía entre sí. Sin sesión válida (llegará 401 de todos modos)
+  // cae a IP como respaldo.
+  const chatRateLimitKey = async (req: express.Request) => {
+    try {
+      const user = await sdk.authenticateRequest(req);
+      if (user) return `user:${user.id}`;
+    } catch {
+      // sin sesión válida — usa IP como respaldo
+    }
+    return ipKeyGenerator(req.ip ?? "unknown");
+  };
+  const chatLimiter = rateLimit({
+    windowMs: 60 * 1000,
+    max: 8,
+    standardHeaders: true,
+    legacyHeaders: false,
+    keyGenerator: chatRateLimitKey,
+    message: { error: "Demasiadas consultas al asistente. Espera un minuto." },
+  });
+  app.use("/api/trpc/ai.chat", chatLimiter);
+  const chatDailyLimiter = rateLimit({
+    windowMs: 24 * 60 * 60 * 1000,
+    max: 300,
+    standardHeaders: true,
+    legacyHeaders: false,
+    keyGenerator: chatRateLimitKey,
+    message: { error: "Se alcanzó el límite diario de consultas al asistente." },
+  });
+  app.use("/api/trpc/ai.chat", chatDailyLimiter);
 
   // Configure body parser with larger size limit for file uploads
   app.use(express.json({ limit: "50mb" }));

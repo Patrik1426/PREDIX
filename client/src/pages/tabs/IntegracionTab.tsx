@@ -27,6 +27,10 @@ interface Integration {
   lastSync: string;
   requestsToday: number;
   avgLatency: number;
+  /** Si la telemetría (status/lastSync/requestsToday/avgLatency) viene de una conexión real verificada, o es demo de UI. */
+  origen: "real" | "simulado";
+  /** Etiqueta del contador (ej. "filas BD", "municipios") — "req" por defecto. */
+  metricaLabel?: string;
   description?: string;
   version?: string;
   headers?: Record<string, string>;
@@ -58,15 +62,14 @@ interface AuditEntry {
 }
 
 /* ─── Demo Data ─── */
+// Solo los conectores con fuente pública real y verificada. Los otros 5 que
+// existían antes (C5, PGJ, SSEM, Plataforma México, Webhook sísmico) nunca
+// tuvieron API pública real — se documentaron y sacaron del producto en vivo
+// el 2026-07-21, ver docs/referencia/CONECTORES_DESCARTADOS.md.
 const INITIAL_INTEGRATIONS: Integration[] = [
-  { id: "sesnsp-api", name: "SESNSP - Incidencia Delictiva", type: "REST", endpoint: "https://api.sesnsp.gob.mx/v2/incidencia", authMethod: "API_KEY", status: "active", lastSync: "Hace 2 min", requestsToday: 1247, avgLatency: 342, description: "Secretariado Ejecutivo del Sistema Nacional de Seguridad Pública. Provee datos de incidencia delictiva por entidad, municipio y tipo de delito.", version: "v2.1", rateLimit: "1000 req/hr", timeout: 30000, retries: 3 },
-  { id: "c5-edomex", name: "C5 Estado de México", type: "SOAP", endpoint: "https://c5.edomex.gob.mx/ws/alertas", authMethod: "CERTIFICATE", status: "active", lastSync: "Hace 15 min", requestsToday: 856, avgLatency: 518, description: "Centro de Comando, Cómputo, Control, Comunicaciones y Contacto Ciudadano del Estado de México. Gestión de alertas y videovigilancia.", version: "v1.3", rateLimit: "500 req/hr", timeout: 45000, retries: 2 },
-  { id: "inegi-geo", name: "INEGI - Datos Geoespaciales", type: "REST", endpoint: "https://api.inegi.org.mx/geo/v1", authMethod: "API_KEY", status: "active", lastSync: "Hace 1 hr", requestsToday: 423, avgLatency: 287, description: "Instituto Nacional de Estadística y Geografía. Datos geoespaciales, cartografía y estadísticas demográficas.", version: "v1.0", rateLimit: "2000 req/hr", timeout: 20000, retries: 3 },
-  { id: "pgj-edomex", name: "PGJ EdoMéx - Denuncias", type: "SOAP", endpoint: "https://pgj.edomex.gob.mx/ws/denuncias", authMethod: "OAUTH2", status: "error", lastSync: "Hace 3 hrs", requestsToday: 12, avgLatency: 1200, description: "Procuraduría General de Justicia del Estado de México. Sistema de gestión de denuncias y carpetas de investigación.", version: "v2.0", rateLimit: "200 req/hr", timeout: 60000, retries: 5 },
-  { id: "ssem-911", name: "SSEM - Llamadas 911", type: "REST", endpoint: "https://ssem.edomex.gob.mx/api/911", authMethod: "BASIC", status: "active", lastSync: "Hace 30 seg", requestsToday: 3421, avgLatency: 156, description: "Secretaría de Seguridad del Estado de México. Registro de llamadas de emergencia 911 en tiempo real.", version: "v3.2", rateLimit: "5000 req/hr", timeout: 10000, retries: 2 },
-  { id: "plataforma-mx", name: "Plataforma México", type: "REST", endpoint: "https://plataformamexico.gob.mx/api/v3", authMethod: "CERTIFICATE", status: "inactive", lastSync: "Hace 2 días", requestsToday: 0, avgLatency: 0, description: "Sistema Nacional de Información de Seguridad Pública. Base de datos nacional de antecedentes penales y registros policiales.", version: "v3.0", rateLimit: "100 req/hr", timeout: 30000, retries: 3 },
-  { id: "denue-inegi", name: "DENUE - Directorio Empresas", type: "REST", endpoint: "https://www.inegi.org.mx/app/api/denue/v1", authMethod: "API_KEY", status: "active", lastSync: "Hace 6 hrs", requestsToday: 89, avgLatency: 445, description: "Directorio Estadístico Nacional de Unidades Económicas. Geolocalización de negocios y establecimientos.", version: "v1.0", rateLimit: "1500 req/hr", timeout: 25000, retries: 2 },
-  { id: "webhook-alertas", name: "Webhook - Alertas Sísmicas", type: "WEBHOOK", endpoint: "https://predix.edomex.gob.mx/hooks/sismos", authMethod: "NONE", status: "active", lastSync: "Hace 45 min", requestsToday: 23, avgLatency: 45, description: "Recepción de alertas sísmicas del Servicio Sismológico Nacional. Notificaciones push automáticas.", version: "v1.1", rateLimit: "Sin límite", timeout: 5000, retries: 1 },
+  { id: "sesnsp-api", name: "SESNSP - Incidencia Delictiva", type: "REST", endpoint: "https://www.datos.gob.mx (SESNSP, pipeline scripts/load-sesnsp.ts)", authMethod: "NONE", status: "inactive", lastSync: "Sin datos", requestsToday: 0, avgLatency: 0, origen: "simulado", metricaLabel: "filas BD", description: "Secretariado Ejecutivo del Sistema Nacional de Seguridad Pública. Provee datos de incidencia delictiva por entidad, municipio y tipo de delito. Se sobreescribe con el estado real del pipeline en cuanto carga.", version: "v2.1", rateLimit: "—", timeout: 30000, retries: 3 },
+  { id: "inegi-geo", name: "INEGI - Datos Geoespaciales", type: "REST", endpoint: "https://mapas.inegi.org.mx/geoserver (WFS, Marco Geoestadístico)", authMethod: "NONE", status: "active", lastSync: "Carga puntual — Marco Geoestadístico", requestsToday: 125, avgLatency: 0, origen: "real", metricaLabel: "municipios", description: "Instituto Nacional de Estadística y Geografía. Polígonos municipales reales (WFS público) usados en el mapa; carga puntual vía scripts/load-municipios-geojson.ts, no un enlace continuo con contador de requests.", version: "v1.0", rateLimit: "—", timeout: 20000, retries: 3 },
+  { id: "denue-inegi", name: "DENUE - Directorio Empresas", type: "REST", endpoint: "https://www.inegi.org.mx/app/api/denue/v1", authMethod: "API_KEY", status: "error", lastSync: "Bloqueado — servicio de INEGI caído", requestsToday: 0, avgLatency: 0, origen: "simulado", description: "Directorio Estadístico Nacional de Unidades Económicas. Token gratis ya generado, pero el servicio de INEGI responde con errores de servidor para cualquier token (verificado 2026-07-21, no es un problema de nuestra credencial) — ver CLAUDE.md.", version: "v1.0", rateLimit: "—", timeout: 25000, retries: 2 },
 ];
 
 const INITIAL_SECRETS: VaultSecret[] = [
@@ -134,7 +137,6 @@ export default function IntegracionTab() {
 
   // Estado real del pipeline SESNSP — sobreescribe el conector mock con datos verificables
   const { data: sesnspStatus } = trpc.incidencia.syncStatus.useQuery();
-  const sesnspEsReal = sesnspStatus?.origen === "real" && sesnspStatus.conectado;
   useEffect(() => {
     if (!sesnspStatus || sesnspStatus.origen !== "real") return;
     setIntegrations(prev => prev.map(i => i.id === "sesnsp-api" ? {
@@ -142,6 +144,7 @@ export default function IntegracionTab() {
       status: sesnspStatus.conectado ? "active" : "inactive",
       lastSync: sesnspStatus.ultimoSync ? relativeTime(new Date(sesnspStatus.ultimoSync)) : "Sin datos",
       requestsToday: sesnspStatus.filasCargadas,
+      origen: "real" as const,
     } : i));
   }, [sesnspStatus]);
   const [secrets, setSecrets] = useState<VaultSecret[]>(INITIAL_SECRETS);
@@ -194,7 +197,7 @@ export default function IntegracionTab() {
     if (!newInteg.name || !newInteg.endpoint) { toast.error("Nombre y endpoint son obligatorios"); return; }
     const integration: Integration = {
       id: `custom-${Date.now()}`, name: newInteg.name, type: newInteg.type, endpoint: newInteg.endpoint,
-      authMethod: newInteg.authMethod, status: "inactive", lastSync: "Nunca", requestsToday: 0, avgLatency: 0,
+      authMethod: newInteg.authMethod, status: "inactive", lastSync: "Nunca", requestsToday: 0, avgLatency: 0, origen: "simulado",
       description: newInteg.description || "Integración personalizada", version: "v1.0", rateLimit: "Sin definir", timeout: 30000, retries: 3,
     };
     setIntegrations(prev => [...prev, integration]);
@@ -215,6 +218,11 @@ export default function IntegracionTab() {
 
   /* ─── Toggle Integration Status ─── */
   const handleToggleStatus = (id: string) => {
+    const integ = integrations.find(i => i.id === id);
+    if (integ?.origen !== "real") {
+      toast.info("Vista de demostración — este conector no tiene una integración real (ver detalle para el motivo).");
+      return;
+    }
     setIntegrations(prev => prev.map(i => {
       if (i.id !== id) return i;
       const newStatus = i.status === "active" ? "inactive" : "active";
@@ -226,6 +234,10 @@ export default function IntegracionTab() {
 
   /* ─── Sync Integration ─── */
   const handleSync = (integ: Integration) => {
+    if (integ.origen !== "real") {
+      toast.info("Vista de demostración — este conector no tiene una integración real (ver detalle para el motivo).");
+      return;
+    }
     setIntegrations(prev => prev.map(i => i.id === integ.id ? { ...i, lastSync: "Ahora", requestsToday: i.requestsToday + 1 } : i));
     addAudit("SYNC_DATA", integ.name);
     toast.success(`Sincronizando ${integ.name}...`);
@@ -352,8 +364,10 @@ export default function IntegracionTab() {
                   <div className="flex items-center gap-2 mb-1">
                     <span style={{ color: statusColor(integration.status) }}>{typeIcon(integration.type)}</span>
                     <span className="truncate" style={{ fontFamily: "var(--px-body)", fontSize: "var(--px-text-sm)", fontWeight: 600, color: "var(--px-text)", flex: 1 }}>{integration.name}</span>
-                    {integration.id === "sesnsp-api" && sesnspEsReal && (
+                    {integration.origen === "real" ? (
                       <span className="px-delta" style={{ color: "var(--px-ok)", background: "color-mix(in srgb, var(--px-ok) 12%, transparent)" }}>DATOS REALES</span>
+                    ) : (
+                      <span className="px-delta" style={{ color: "var(--px-text-muted)", background: "color-mix(in srgb, var(--px-text-muted) 12%, transparent)" }}>DEMO UI</span>
                     )}
                     <span className="px-delta" style={{ color: statusColor(integration.status), background: `color-mix(in srgb, ${statusColor(integration.status)} 12%, transparent)` }}>{statusLabel(integration.status)}</span>
                   </div>
@@ -361,8 +375,8 @@ export default function IntegracionTab() {
                   <div className="truncate" style={{ fontFamily: "var(--px-mono)", fontSize: "var(--px-text-xs)", color: "var(--px-text-faint)", marginBottom: 4 }}>{integration.endpoint}</div>
                   {/* Línea 3: métricas + acciones */}
                   <div className="flex items-center gap-3">
-                    <span style={{ fontFamily: "var(--px-mono)", fontSize: "var(--px-text-xs)", color: "var(--px-brand)" }}><span style={{ fontWeight: 700 }}>{integration.requestsToday.toLocaleString()}</span> {integration.id === "sesnsp-api" && sesnspEsReal ? "filas BD" : "req"}</span>
-                    {!(integration.id === "sesnsp-api" && sesnspEsReal) && (
+                    <span style={{ fontFamily: "var(--px-mono)", fontSize: "var(--px-text-xs)", color: "var(--px-brand)" }}><span style={{ fontWeight: 700 }}>{integration.requestsToday.toLocaleString()}</span> {integration.metricaLabel ?? "req"}</span>
+                    {integration.origen === "real" && integration.avgLatency > 0 && (
                       <span style={{ fontFamily: "var(--px-mono)", fontSize: "var(--px-text-xs)", color: integration.avgLatency > 500 ? "var(--px-warn)" : "var(--px-ok)" }}><span style={{ fontWeight: 700 }}>{integration.avgLatency}</span>ms</span>
                     )}
                     <div className="ml-auto flex gap-1" onClick={e => e.stopPropagation()}>
@@ -571,7 +585,7 @@ export default function IntegracionTab() {
                   {[
                     { l: "Requests", v: selectedIntegration.requestsToday.toLocaleString(), c: "var(--px-brand)" },
                     { l: "Latencia", v: `${selectedIntegration.avgLatency}ms`, c: selectedIntegration.avgLatency > 500 ? "var(--px-warn)" : "var(--px-ok)" },
-                    { l: "Uptime", v: selectedIntegration.status === "active" ? "99.8%" : "0%", c: "var(--px-ok)" },
+                    { l: "Uptime", v: selectedIntegration.origen === "real" ? (selectedIntegration.status === "active" ? "100%" : "0%") : "—", c: "var(--px-ok)" },
                   ].map(k => (
                     <div key={k.l} style={{ padding: "var(--px-2)", borderLeft: `3px solid ${k.c}` }}>
                       <div className="px-eyebrow">{k.l}</div>

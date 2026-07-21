@@ -9,6 +9,7 @@ import {
   predecirDelincuenciaMunicipio,
   predecirDelincuenciaMultiple,
   obtenerMunicipios,
+  obtenerMetricasClasificador,
   type MunicipioPrediction,
 } from "../services/mlPredictor";
 import { CENTROIDE_POR_NOMBRE } from "../data/edomexCentroids";
@@ -96,6 +97,17 @@ export const prediccionesRouter = router({
     };
   }),
 
+  // Métricas del torneo de clasificación de riesgo (Accuracy/Precision/Recall/F1/ROC-AUC)
+  metricasClasificador: publicProcedure.query(async () => {
+    const metricas = await obtenerMetricasClasificador();
+
+    return {
+      success: true,
+      message: `${metricas.length} modelos evaluados`,
+      data: metricas,
+    };
+  }),
+
   // Obtener predicción con análisis de riesgo
   analizarRiesgo: publicProcedure
     .input(
@@ -137,6 +149,7 @@ export const prediccionesRouter = router({
           cambioProcentual: Math.round(cambioProcentual),
           predicciones: prediccion.predicciones,
           desglose: prediccion.desglose,
+          riesgoClasificacion: prediccion.riesgoClasificacion,
           recomendaciones: generarRecomendaciones(riesgoProyectado, tendenciaGeneral),
         },
       };

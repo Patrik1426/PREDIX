@@ -6,9 +6,23 @@ import { describe, it, expect } from "vitest";
 import {
   buildMunicipioPrediction,
   obtenerMunicipios,
+  obtenerMetricasClasificador,
   predecirDelincuenciaMunicipio,
   type PrediccionMlRow,
+  type RiesgoClasificacionRow,
 } from "./services/mlPredictor";
+
+function filaRiesgo(overrides: Partial<RiesgoClasificacionRow>): RiesgoClasificacionRow {
+  return {
+    clasePredicha: "medio",
+    probaBajo: 10,
+    probaMedio: 60,
+    probaAlto: 25,
+    probaCritico: 5,
+    modeloGanador: "logistic_regression",
+    ...overrides,
+  };
+}
 
 function fila(overrides: Partial<PrediccionMlRow>): PrediccionMlRow {
   return {
@@ -75,6 +89,43 @@ describe("buildMunicipioPrediction (lógica pura, sin BD)", () => {
     const result = buildMunicipioPrediction("Toluca", rows, 1);
     expect(result!.predicciones[0].prediccion).toBeGreaterThanOrEqual(0);
     expect(result!.predicciones[0].intervaloConfianza.minimo).toBeGreaterThanOrEqual(0);
+  });
+
+  it("sin clasificador real, usa umbrales fijos y no expone riesgoClasificacion", () => {
+    const rows = [fila({ horizonte: 1, valorPredicho: 350 })];
+    const result = buildMunicipioPrediction("Toluca", rows, 1);
+    expect(result!.riesgoProyectado).toBe("crítico");
+    expect(result!.riesgoClasificacion).toBeUndefined();
+  });
+
+  it("con clasificador real, la clase predicha sobreescribe el umbral fijo", () => {
+    // El total (350) por umbral fijo daría "crítico", pero el clasificador
+    // real dice "bajo" — debe ganar el clasificador, no el umbral.
+    const rows = [fila({ horizonte: 1, valorPredicho: 350 })];
+    const clasRow = filaRiesgo({ clasePredicha: "bajo", probaBajo: 80, probaMedio: 15, probaAlto: 4, probaCritico: 1 });
+    const result = buildMunicipioPrediction("Toluca", rows, 1, clasRow);
+    expect(result!.riesgoProyectado).toBe("bajo");
+    expect(result!.riesgoClasificacion).toEqual({
+      clase: "bajo",
+      confianza: 80,
+      probabilidades: { bajo: 80, medio: 15, alto: 4, crítico: 1 },
+      modelo: "logistic_regression",
+    });
+  });
+
+  it("mapea la clase ascii 'critico' de la BD al valor con acento de la app", () => {
+    const rows = [fila({ horizonte: 1, valorPredicho: 10 })];
+    const clasRow = filaRiesgo({ clasePredicha: "critico", probaCritico: 90, probaBajo: 5, probaMedio: 3, probaAlto: 2 });
+    const result = buildMunicipioPrediction("Toluca", rows, 1, clasRow);
+    expect(result!.riesgoProyectado).toBe("crítico");
+    expect(result!.riesgoClasificacion?.clase).toBe("crítico");
+  });
+});
+
+describe("obtenerMetricasClasificador — modo degradado (sin BD en tests)", () => {
+  it("devuelve arreglo vacío sin BD (nunca inventa métricas)", async () => {
+    const metricas = await obtenerMetricasClasificador();
+    expect(metricas).toEqual([]);
   });
 });
 

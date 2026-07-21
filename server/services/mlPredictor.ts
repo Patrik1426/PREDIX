@@ -4,11 +4,21 @@
  * (tabla predicciones_ml) — sin cómputo estadístico en el request path.
  */
 
-import { asc, eq } from "drizzle-orm";
+import { asc, eq, desc } from "drizzle-orm";
 import { getDb } from "../config/db";
-import { prediccionesMl } from "../../drizzle/schema";
+import { prediccionesMl, riesgoClasificacion, riesgoClasificacionMetrics } from "../../drizzle/schema";
 import { logger } from "../_core/logger";
 import { EDOMEX_CENTROIDES } from "../data/edomexCentroids";
+
+type ClaseRiesgo = "bajo" | "medio" | "alto" | "crítico";
+
+/** riesgo_clasificacion guarda la clase en ASCII ("critico") — un solo
+ * punto de mapeo hacia el valor con acento que usa el resto de la app. */
+function mapClaseAscii(clase: string): ClaseRiesgo {
+  if (clase === "critico") return "crítico";
+  if (clase === "bajo" || clase === "medio" || clase === "alto") return clase;
+  return "medio";
+}
 
 export interface PredictionData {
   municipio: string;
@@ -31,6 +41,24 @@ export interface DesgloseTipo {
   confianza: number;
 }
 
+export interface RiesgoClasificacionInfo {
+  clase: ClaseRiesgo;
+  confianza: number;
+  probabilidades: { bajo: number; medio: number; alto: number; crítico: number };
+  modelo: string;
+}
+
+export interface ClasificadorMetric {
+  modelo: string;
+  esGanador: boolean;
+  accuracy: number;
+  precisionMacro: number;
+  recallMacro: number;
+  f1Macro: number;
+  rocAucMacro: number | null;
+  nTest: number;
+}
+
 export interface MunicipioPrediction {
   municipio: string;
   predicciones: PredictionData[];
@@ -38,6 +66,17 @@ export interface MunicipioPrediction {
   tendenciaGeneral: "al_alza" | "a_la_baja" | "estable";
   riesgoProyectado: "bajo" | "medio" | "alto" | "crítico";
   desglose: DesgloseTipo[];
+  riesgoClasificacion?: RiesgoClasificacionInfo;
+}
+
+/** Forma mínima de una fila de riesgo_clasificacion que necesita la lógica pura. */
+export interface RiesgoClasificacionRow {
+  clasePredicha: string;
+  probaBajo: number;
+  probaMedio: number;
+  probaAlto: number;
+  probaCritico: number;
+  modeloGanador: string;
 }
 
 /** Forma mínima de una fila de predicciones_ml que necesita la lógica pura. */
@@ -63,7 +102,8 @@ export interface PrediccionMlRow {
 export function buildMunicipioPrediction(
   municipio: string,
   rows: PrediccionMlRow[],
-  meses: number
+  meses: number,
+  riesgoClasRow?: RiesgoClasificacionRow | null
 ): MunicipioPrediction | null {
   if (rows.length === 0) return null;
 
@@ -111,11 +151,32 @@ export function buildMunicipioPrediction(
     predicciones.reduce((s, p) => s + p.prediccion, 0) / predicciones.length
   );
 
+  // Umbrales fijos — fallback cuando el clasificador aún no corrió para
+  // este municipio (scripts/predict/build_riesgo_clasificacion.py). Cuando
+  // sí hay clasificación real, se sobreescribe abajo con el modelo entrenado.
   let riesgoProyectado: "bajo" | "medio" | "alto" | "crítico";
   if (promedioPredictivo < 50) riesgoProyectado = "bajo";
   else if (promedioPredictivo < 150) riesgoProyectado = "medio";
   else if (promedioPredictivo < 300) riesgoProyectado = "alto";
   else riesgoProyectado = "crítico";
+
+  let riesgoClasificacion: RiesgoClasificacionInfo | undefined;
+  if (riesgoClasRow) {
+    const clase = mapClaseAscii(riesgoClasRow.clasePredicha);
+    riesgoProyectado = clase;
+    const probabilidades = {
+      bajo: riesgoClasRow.probaBajo,
+      medio: riesgoClasRow.probaMedio,
+      alto: riesgoClasRow.probaAlto,
+      crítico: riesgoClasRow.probaCritico,
+    };
+    riesgoClasificacion = {
+      clase,
+      confianza: Math.max(probabilidades.bajo, probabilidades.medio, probabilidades.alto, probabilidades.crítico),
+      probabilidades,
+      modelo: riesgoClasRow.modeloGanador,
+    };
+  }
 
   const desglosePorTipo = new Map<string, PrediccionMlRow>();
   for (const r of rows) {
@@ -129,7 +190,7 @@ export function buildMunicipioPrediction(
     confianza: r.confianza,
   }));
 
-  return { municipio, predicciones, promedioPredictivo, tendenciaGeneral, riesgoProyectado, desglose };
+  return { municipio, predicciones, promedioPredictivo, tendenciaGeneral, riesgoProyectado, desglose, riesgoClasificacion };
 }
 
 /**
@@ -160,7 +221,13 @@ export async function predecirDelincuenciaMunicipio(
       return null;
     }
 
-    return buildMunicipioPrediction(municipio, rows, meses);
+    const riesgoClasRows = await db
+      .select()
+      .from(riesgoClasificacion)
+      .where(eq(riesgoClasificacion.municipio, municipio))
+      .limit(1);
+
+    return buildMunicipioPrediction(municipio, rows, meses, riesgoClasRows[0] ?? null);
   } catch (error) {
     logger.error(`[ML] Error predicting for ${municipio}:`, error);
     return null;
@@ -180,6 +247,37 @@ export async function predecirDelincuenciaMultiple(
     if (prediccion) predicciones.push(prediccion);
   }
   return predicciones;
+}
+
+/**
+ * Métricas del torneo de clasificación (Accuracy/Precision/Recall/F1/ROC-AUC
+ * por candidato) — transparencia del último run de
+ * scripts/predict/build_riesgo_clasificacion.py.
+ */
+export async function obtenerMetricasClasificador(): Promise<ClasificadorMetric[]> {
+  try {
+    const db = await getDb();
+    if (!db) return [];
+
+    const rows = await db
+      .select()
+      .from(riesgoClasificacionMetrics)
+      .orderBy(desc(riesgoClasificacionMetrics.f1Macro));
+
+    return rows.map((r) => ({
+      modelo: r.modelo,
+      esGanador: r.esGanador === 1,
+      accuracy: r.accuracy,
+      precisionMacro: r.precisionMacro,
+      recallMacro: r.recallMacro,
+      f1Macro: r.f1Macro,
+      rocAucMacro: r.rocAucMacro,
+      nTest: r.nTest,
+    }));
+  } catch (error) {
+    logger.error("[ML] Error fetching classifier metrics:", error);
+    return [];
+  }
 }
 
 /**

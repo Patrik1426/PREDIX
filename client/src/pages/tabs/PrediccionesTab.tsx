@@ -6,17 +6,33 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { trpc } from "@/lib/trpc";
-import { Brain, Activity, Loader, Download, RefreshCw, TrendingUp, TrendingDown, BarChart3, ChevronDown } from "lucide-react";
+import { Brain, Activity, Loader, Download, RefreshCw, TrendingUp, TrendingDown, Minus, BarChart3, ChevronDown, ShieldCheck, ShieldAlert, AlertTriangle, Siren, ListChecks } from "lucide-react";
 import PredictionChart from "@/components/PredictionChart";
 import { toast } from "sonner";
-import { EmptyState, OriginBadge } from "@/components/dashboard";
+import { OriginBadge } from "@/components/dashboard";
 import { useIncidenciaSummary } from "@/hooks/useIncidenciaData";
 
+// Los 4 niveles de riesgo comparten un solo significado en toda la app —
+// mismo mapeo de color que ZonasTab.tsx (bajo=ok, medio=brand, alto=warn, crítico=crit).
 function riskColor(r: string) {
   if (r === "crítico") return "var(--px-crit)";
   if (r === "alto") return "var(--px-warn)";
+  if (r === "medio") return "var(--px-brand)";
   return "var(--px-ok)";
 }
+
+const RISK_INFO: Record<string, { label: string; meaning: string; Icon: typeof ShieldCheck }> = {
+  bajo: { label: "Bajo", meaning: "Situación bajo control. Mantén la vigilancia habitual.", Icon: ShieldCheck },
+  medio: { label: "Medio", meaning: "Atención moderada. Revisa los puntos de patrullaje más débiles.", Icon: ShieldAlert },
+  alto: { label: "Alto", meaning: "Riesgo elevado. Refuerza la vigilancia y prepara respuesta rápida.", Icon: AlertTriangle },
+  "crítico": { label: "Crítico", meaning: "Riesgo crítico. Actúa de inmediato: refuerzo total y coordinación interinstitucional.", Icon: Siren },
+};
+
+const TENDENCIA_INFO: Record<string, { label: string; Icon: typeof TrendingUp; color: string }> = {
+  al_alza: { label: "Va en aumento", Icon: TrendingUp, color: "var(--px-crit)" },
+  a_la_baja: { label: "Va en disminución", Icon: TrendingDown, color: "var(--px-ok)" },
+  estable: { label: "Se mantiene estable", Icon: Minus, color: "var(--px-text-muted)" },
+};
 
 const TIPO_LABELS: Record<string, string> = {
   homicidios: "Homicidios",
@@ -25,6 +41,13 @@ const TIPO_LABELS: Record<string, string> = {
   violencia_sexual: "Violencia sexual",
   narcomenudeo: "Narcomenudeo",
   otros: "Otros delitos",
+};
+
+const CLASE_LABELS: Record<string, string> = {
+  bajo: "Bajo",
+  medio: "Medio",
+  alto: "Alto",
+  crítico: "Crítico",
 };
 
 export default function PrediccionesTab() {
@@ -37,9 +60,12 @@ export default function PrediccionesTab() {
   const [history, setHistory] = useState<Array<{ municipio: string; fecha: string; riesgo: string; delitos: number }>>([]);
   const [muniSearch, setMuniSearch] = useState("");
   const [muniListOpen, setMuniListOpen] = useState(false);
+  const [showTechnical, setShowTechnical] = useState(false);
 
   const { data: summary } = useIncidenciaSummary();
   const { data: municipiosData, isLoading: loadingMunis } = trpc.predicciones.obtenerMunicipios.useQuery();
+  const { data: metricasData } = trpc.predicciones.metricasClasificador.useQuery();
+  const metricasClasificador = metricasData?.data || [];
   const municipios = municipiosData?.data || [];
   const filteredMunis = useMemo(() => muniSearch ? municipios.filter(m => m.toLowerCase().includes(muniSearch.toLowerCase())) : municipios, [municipios, muniSearch]);
 
@@ -194,54 +220,155 @@ export default function PrediccionesTab() {
         </div>
       )}
 
-      {pred && !loadingPred && !isGenerating && kpis && (
-        <div style={{ display: "flex", flexDirection: "column", gap: "var(--px-3)" }}>
-          <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
-            {[
-              { l: "Proyect.", v: kpis.total.toLocaleString(), c: "var(--px-brand)", icon: <BarChart3 size={12} /> },
-              { l: "Prom/mes", v: kpis.promedio.toLocaleString(), c: "var(--px-text-muted)", icon: <Activity size={12} /> },
-              { l: "Horizonte", v: `${kpis.meses}m`, c: "var(--px-text-muted)", icon: <Brain size={12} /> },
-              { l: "Riesgo", v: kpis.riesgo.toUpperCase(), c: riskColor(kpis.riesgo), icon: kpis.riesgo === "alto" || kpis.riesgo === "crítico" ? <TrendingUp size={12} /> : <TrendingDown size={12} /> },
-              { l: "Tendencia", v: kpis.tendencia === "al_alza" ? "ALZA" : kpis.tendencia === "a_la_baja" ? "BAJA" : "ESTABLE", c: kpis.tendencia === "al_alza" ? "var(--px-crit)" : "var(--px-ok)", icon: <TrendingUp size={12} /> },
-            ].map((k, i) => (
-              <div key={i} style={{ padding: "var(--px-2)", borderLeft: `3px solid ${k.c}` }}>
-                <div className="flex items-center gap-1" style={{ color: k.c, marginBottom: 2 }}>{k.icon}<span className="px-eyebrow">{k.l}</span></div>
-                <div style={{ fontFamily: "var(--px-mono)", fontSize: "var(--px-text-lg)", fontWeight: 700, color: k.c, lineHeight: 1 }}>{k.v}</div>
+      {pred && !loadingPred && !isGenerating && kpis && (() => {
+        const risk = RISK_INFO[kpis.riesgo] ?? RISK_INFO.medio;
+        const tendencia = TENDENCIA_INFO[kpis.tendencia] ?? TENDENCIA_INFO.estable;
+        const RiskIcon = risk.Icon;
+        const TrendIcon = tendencia.Icon;
+        const color = riskColor(kpis.riesgo);
+        return (
+          <div style={{ display: "flex", flexDirection: "column", gap: "var(--px-3)" }}>
+
+            {/* ── Estado del municipio — lo primero que se ve, sin jerga ── */}
+            <div style={{
+              padding: "var(--px-4)", borderRadius: "var(--px-r-md)",
+              background: `color-mix(in srgb, ${color} 8%, var(--px-surface))`,
+              border: `1px solid color-mix(in srgb, ${color} 35%, transparent)`,
+            }}>
+              <div className="flex items-start gap-3">
+                <div style={{
+                  width: 52, height: 52, flexShrink: 0, borderRadius: 12,
+                  background: `color-mix(in srgb, ${color} 16%, transparent)`,
+                  border: `1px solid color-mix(in srgb, ${color} 40%, transparent)`,
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                }}>
+                  <RiskIcon size={26} style={{ color }} />
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span style={{ fontFamily: "var(--px-display)", fontSize: "var(--px-text-xl)", fontWeight: 700, color, lineHeight: 1 }}>
+                      Riesgo {risk.label}
+                    </span>
+                    <span style={{ fontFamily: "var(--px-mono)", fontSize: "var(--px-text-xs)", color: "var(--px-text-faint)" }}>
+                      · {pred.municipio}
+                    </span>
+                  </div>
+                  <p style={{ fontFamily: "var(--px-body)", fontSize: "var(--px-text-sm)", color: "var(--px-text-muted)", marginTop: 4, lineHeight: 1.4 }}>
+                    {risk.meaning}
+                  </p>
+                  <div className="flex items-center gap-1" style={{ marginTop: 8, color: tendencia.color }}>
+                    <TrendIcon size={13} />
+                    <span style={{ fontFamily: "var(--px-body)", fontSize: "var(--px-text-xs)", fontWeight: 600 }}>{tendencia.label}</span>
+                  </div>
+                </div>
               </div>
-            ))}
-          </div>
-
-          {pred.recomendaciones?.length > 0 && (
-            <div style={{ padding: "var(--px-3)", borderRadius: "var(--px-r-sm)", background: "color-mix(in srgb, var(--px-warn) 6%, transparent)", border: "1px solid color-mix(in srgb, var(--px-warn) 20%, transparent)" }}>
-              <div className="px-eyebrow" style={{ color: "var(--px-warn)", marginBottom: "var(--px-1)" }}>Recomendaciones</div>
-              {pred.recomendaciones.map((rec: string, i: number) => (
-                <div key={i} style={{ fontFamily: "var(--px-body)", fontSize: "var(--px-text-xs)", color: "var(--px-text-muted)", padding: "2px 0" }}>▸ {rec}</div>
-              ))}
             </div>
-          )}
 
-          {pred.desglose?.length > 0 && (
-            <div style={{ padding: "var(--px-3)", border: "1px solid var(--px-hairline)", borderRadius: "var(--px-r-sm)" }}>
-              <div className="px-eyebrow" style={{ marginBottom: "var(--px-2)" }}>Desglose por tipo de delito</div>
-              {pred.desglose.map((d: any) => (
-                <div key={d.tipo} className="flex items-center gap-2" style={{ padding: "5px 0", borderBottom: "1px solid var(--px-hairline)" }}>
-                  <span style={{ fontFamily: "var(--px-body)", fontSize: "var(--px-text-xs)", color: "var(--px-text-muted)", flex: 1 }}>
-                    {TIPO_LABELS[d.tipo] || d.tipo}
-                  </span>
-                  <span style={{ fontFamily: "var(--px-mono)", fontSize: "var(--px-text-xs)", color: "var(--px-text-faint)" }}>
-                    {d.modelo}{d.mapeBacktest != null ? ` · MAPE ${d.mapeBacktest}%` : ""}
-                  </span>
-                  <span style={{ fontFamily: "var(--px-mono)", fontSize: "var(--px-text-sm)", fontWeight: 700, color: "var(--px-brand)", width: 48, textAlign: "right" }}>
-                    {d.promedioPredictivo}
-                  </span>
+            {/* ── Qué hacer — la razón de ser de esta pantalla ── */}
+            {pred.recomendaciones?.length > 0 && (
+              <div style={{ padding: "var(--px-3) var(--px-4)", borderRadius: "var(--px-r-sm)", border: "1px solid var(--px-hairline)" }}>
+                <div className="flex items-center gap-2" style={{ marginBottom: "var(--px-2)" }}>
+                  <ListChecks size={13} style={{ color: "var(--px-brand)" }} />
+                  <span className="px-eyebrow">Qué hacer</span>
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                  {pred.recomendaciones.map((rec: string, i: number) => (
+                    <div key={i} className="flex items-start gap-2">
+                      <span style={{ fontFamily: "var(--px-mono)", fontSize: "var(--px-text-xs)", color: "var(--px-text-faint)", marginTop: 1 }}>{i + 1}.</span>
+                      <span style={{ fontFamily: "var(--px-body)", fontSize: "var(--px-text-sm)", color: "var(--px-text)", lineHeight: 1.4 }}>{rec}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* ── Datos de apoyo, en lenguaje llano ── */}
+            <div className="grid grid-cols-3 gap-2">
+              {[
+                { l: "Promedio/mes", v: kpis.promedio.toLocaleString(), sub: "delitos estimados" },
+                { l: "Próximo mes", v: (pred.predicciones?.[0]?.prediccion ?? 0).toLocaleString(), sub: "delitos estimados" },
+                { l: "Periodo analizado", v: `${kpis.meses}m`, sub: "meses hacia adelante" },
+              ].map((k, i) => (
+                <div key={i} style={{ padding: "var(--px-2) var(--px-3)", border: "1px solid var(--px-hairline)", borderRadius: "var(--px-r-sm)" }}>
+                  <div className="px-eyebrow" style={{ marginBottom: 2 }}>{k.l}</div>
+                  <div style={{ fontFamily: "var(--px-mono)", fontSize: "var(--px-text-lg)", fontWeight: 700, color: "var(--px-text)", lineHeight: 1 }}>{k.v}</div>
+                  <div style={{ fontFamily: "var(--px-body)", fontSize: "var(--px-text-xs)", color: "var(--px-text-faint)", marginTop: 2 }}>{k.sub}</div>
                 </div>
               ))}
             </div>
-          )}
 
-          <PredictionChart predicciones={pred.predicciones} municipio={pred.municipio} tendencia={pred.tendenciaGeneral} riesgo={pred.riesgoProyectado} />
-        </div>
-      )}
+            <PredictionChart predicciones={pred.predicciones} municipio={pred.municipio} tendencia={pred.tendenciaGeneral} riesgo={pred.riesgoProyectado} />
+
+            {/* ── Cómo se calculó — oculto por default, en lenguaje llano cuando se abre ── */}
+            <div style={{ border: "1px solid var(--px-hairline)", borderRadius: "var(--px-r-sm)", overflow: "hidden" }}>
+              <button
+                onClick={() => setShowTechnical((v) => !v)}
+                aria-expanded={showTechnical}
+                aria-controls="pred-technical-detail"
+                className="w-full flex items-center justify-between"
+                style={{ padding: "var(--px-2) var(--px-4)", background: "transparent", border: "none", cursor: "pointer" }}
+              >
+                <span style={{ fontFamily: "var(--px-body)", fontSize: "var(--px-text-xs)", color: "var(--px-text-muted)" }}>
+                  ¿Cómo se calculó esta predicción?
+                </span>
+                <ChevronDown size={14} style={{ color: "var(--px-text-faint)", transform: showTechnical ? "rotate(180deg)" : "none", transition: "transform 0.2s" }} />
+              </button>
+
+              {showTechnical && (
+                <div id="pred-technical-detail" style={{ padding: "var(--px-3) var(--px-4)", borderTop: "1px solid var(--px-hairline)", display: "flex", flexDirection: "column", gap: "var(--px-4)" }}>
+
+                  {pred.desglose?.length > 0 && (
+                    <div>
+                      <div className="px-eyebrow" style={{ marginBottom: 2 }}>Qué tipo de delito influye más</div>
+                      <p style={{ fontFamily: "var(--px-body)", fontSize: "var(--px-text-xs)", color: "var(--px-text-faint)", marginBottom: "var(--px-2)", lineHeight: 1.4 }}>
+                        Cuántos delitos de cada tipo se esperan el próximo mes.
+                      </p>
+                      {pred.desglose.map((d: any) => (
+                        <div key={d.tipo} className="flex items-center gap-2" style={{ padding: "6px 0", borderBottom: "1px solid var(--px-hairline)" }}>
+                          <span style={{ fontFamily: "var(--px-body)", fontSize: "var(--px-text-xs)", color: "var(--px-text-muted)", flex: 1 }}>
+                            {TIPO_LABELS[d.tipo] || d.tipo}
+                          </span>
+                          <span style={{ fontFamily: "var(--px-mono)", fontSize: "var(--px-text-sm)", fontWeight: 700, color: "var(--px-brand)", width: 48, textAlign: "right" }}>
+                            {d.promedioPredictivo}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {pred.riesgoClasificacion && (
+                    <div>
+                      <div className="px-eyebrow" style={{ marginBottom: 2 }}>Qué tan seguro está el sistema</div>
+                      <p style={{ fontFamily: "var(--px-body)", fontSize: "var(--px-text-xs)", color: "var(--px-text-faint)", marginBottom: "var(--px-2)", lineHeight: 1.4 }}>
+                        De 100 municipios parecidos a este, así se reparte hacia dónde apunta el riesgo:
+                      </p>
+                      <div className="grid grid-cols-4 gap-2" style={{ marginBottom: "var(--px-3)" }}>
+                        {(["bajo", "medio", "alto", "crítico"] as const).map((c) => (
+                          <div key={c} style={{ padding: "6px", borderRadius: 4, textAlign: "center", background: c === pred.riesgoClasificacion!.clase ? "color-mix(in srgb, var(--px-brand) 12%, transparent)" : "transparent", border: c === pred.riesgoClasificacion!.clase ? "1px solid var(--px-brand)" : "1px solid var(--px-hairline)" }}>
+                            <div style={{ fontFamily: "var(--px-mono)", fontSize: "var(--px-text-xs)", color: "var(--px-text-faint)" }}>{CLASE_LABELS[c]}</div>
+                            <div style={{ fontFamily: "var(--px-mono)", fontSize: "var(--px-text-sm)", fontWeight: 700, color: c === pred.riesgoClasificacion!.clase ? "var(--px-brand)" : "var(--px-text-muted)" }}>
+                              {pred.riesgoClasificacion!.probabilidades[c]}%
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                      {(() => {
+                        const ganador = metricasClasificador.find((m) => m.esGanador) ?? metricasClasificador[0];
+                        if (!ganador) return null;
+                        return (
+                          <p style={{ fontFamily: "var(--px-body)", fontSize: "var(--px-text-xs)", color: "var(--px-text-muted)", lineHeight: 1.5, padding: "var(--px-2) var(--px-3)", background: "color-mix(in srgb, var(--px-brand) 5%, transparent)", borderRadius: "var(--px-r-sm)" }}>
+                            Este sistema se puso a prueba contra 12 meses de información real que nunca había visto, y acertó el nivel de riesgo en <strong style={{ color: "var(--px-text)" }}>{ganador.accuracy} de cada 100 casos</strong>.
+                          </p>
+                        );
+                      })()}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      })()}
 
       {!pred && !loadingPred && !isGenerating && generationKey === 0 && (
         <div style={{ padding: "var(--px-4)" }}>

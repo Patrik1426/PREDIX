@@ -58,6 +58,11 @@ def _recursive_forecast(train: np.ndarray, horizon: int, fit_fn: Callable) -> np
     if len(X) < 5:
         return sma_forecast(train, horizon)
     model = fit_fn(X, y)
+    # Cota defensiva: PoissonRegressor usa link exponencial internamente —
+    # en series con muchos ceros (huecos de calendario rellenados) puede
+    # dispararse a infinito, y el forecast recursivo retroalimentaría ese
+    # valor como lag del siguiente paso. Si se dispara, cae a SMA.
+    cota = max(float(train.max()) * 10, 100.0)
     history = list(train)
     preds = []
     for _ in range(horizon):
@@ -65,7 +70,10 @@ def _recursive_forecast(train: np.ndarray, horizon: int, fit_fn: Callable) -> np
         lag1, lag2, lag3 = history[-1], history[-2], history[-3]
         roll3 = np.mean(history[-3:])
         x = np.array([[lag1, lag2, lag3, roll3, i % 12]])
-        yhat = max(float(model.predict(x)[0]), 0.0)
+        yhat = float(model.predict(x)[0])
+        if not np.isfinite(yhat) or yhat > cota:
+            return sma_forecast(train, horizon)
+        yhat = max(yhat, 0.0)
         preds.append(yhat)
         history.append(yhat)
     return np.array(preds)
@@ -109,6 +117,12 @@ def neg_binomial_forecast(train: np.ndarray, horizon: int) -> np.ndarray:
         model = sm.GLM(y, Xc, family=sm.families.NegativeBinomial()).fit()
     except Exception:
         return sma_forecast(train, horizon)
+    # Cota defensiva: el link exponencial de NegativeBinomial puede
+    # dispararse a infinito en series con muchos ceros (huecos de calendario
+    # rellenados) — el forecast recursivo retroalimenta ese valor como lag
+    # del siguiente paso, agravándolo. Si se dispara, esta serie completa
+    # cae a SMA en vez de devolver infinito/NaN.
+    cota = max(float(train.max()) * 10, 100.0)
     history = list(train)
     preds = []
     for _ in range(horizon):
@@ -116,7 +130,10 @@ def neg_binomial_forecast(train: np.ndarray, horizon: int) -> np.ndarray:
         lag1, lag2, lag3 = history[-1], history[-2], history[-3]
         roll3 = np.mean(history[-3:])
         x = np.array([[1.0, lag1, lag2, lag3, roll3, i % 12]])
-        yhat = max(float(model.predict(x)[0]), 0.0)
+        yhat = float(model.predict(x)[0])
+        if not np.isfinite(yhat) or yhat > cota:
+            return sma_forecast(train, horizon)
+        yhat = max(yhat, 0.0)
         preds.append(yhat)
         history.append(yhat)
     return np.array(preds)

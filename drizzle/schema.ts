@@ -330,3 +330,49 @@ export const prediccionesMl = mysqlTable("predicciones_ml", {
 
 export type PrediccionMl = typeof prediccionesMl.$inferSelect;
 export type InsertPrediccionMl = typeof prediccionesMl.$inferInsert;
+
+// ── Clasificación de riesgo — modelo de clasificación global (scripts/predict/classify.py) ──
+// 1 modelo entrenado sobre el panel completo (125 municipios x histórico mensual,
+// municipio como feature) predice la clase de riesgo (bajo/medio/alto/crítico) del
+// PRÓXIMO mes por municipio — reemplaza los umbrales fijos que antes calculaba
+// mlPredictor.ts sobre el promedio de la predicción de conteo. 1 fila por municipio,
+// se sobreescribe completo (TRUNCATE + INSERT) cada vez que corre el script.
+export const riesgoClasificacion = mysqlTable("riesgo_clasificacion", {
+  id: int("id").autoincrement().primaryKey(),
+  cveMuni: varchar("cve_muni", { length: 5 }).notNull(),
+  municipio: varchar("municipio", { length: 128 }).notNull().unique(),
+  clasePredicha: varchar("clase_predicha", { length: 16 }).notNull(),
+  probaBajo: int("proba_bajo").notNull(),
+  probaMedio: int("proba_medio").notNull(),
+  probaAlto: int("proba_alto").notNull(),
+  probaCritico: int("proba_critico").notNull(),
+  modeloGanador: varchar("modelo_ganador", { length: 32 }).notNull(),
+  mesPrediccion: int("mes_prediccion").notNull(),
+  anioPrediccion: int("anio_prediccion").notNull(),
+  calculadoEn: timestamp("calculado_en").defaultNow().notNull(),
+}, (t) => [
+  index("idx_riesgo_clas_cve_muni").on(t.cveMuni),
+]);
+
+export type RiesgoClasificacion = typeof riesgoClasificacion.$inferSelect;
+export type InsertRiesgoClasificacion = typeof riesgoClasificacion.$inferInsert;
+
+// ── Métricas del clasificador de riesgo — 1 fila por modelo candidato del
+// torneo (logistic_regression, random_forest, gradient_boosting), evaluado
+// contra un holdout TEMPORAL (últimos 12 meses del panel, nunca aleatorio,
+// para no filtrar información futura). Se sobreescribe completo en cada run.
+export const riesgoClasificacionMetrics = mysqlTable("riesgo_clasificacion_metrics", {
+  id: int("id").autoincrement().primaryKey(),
+  modelo: varchar("modelo", { length: 32 }).notNull(),
+  esGanador: int("es_ganador").notNull(),
+  accuracy: int("accuracy").notNull(),
+  precisionMacro: int("precision_macro").notNull(),
+  recallMacro: int("recall_macro").notNull(),
+  f1Macro: int("f1_macro").notNull(),
+  rocAucMacro: int("roc_auc_macro"),
+  nTest: int("n_test").notNull(),
+  calculadoEn: timestamp("calculado_en").defaultNow().notNull(),
+});
+
+export type RiesgoClasificacionMetric = typeof riesgoClasificacionMetrics.$inferSelect;
+export type InsertRiesgoClasificacionMetric = typeof riesgoClasificacionMetrics.$inferInsert;

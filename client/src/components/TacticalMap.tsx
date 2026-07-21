@@ -26,11 +26,31 @@ export interface TacticalMapLayers {
 /** Municipio georreferenciado para las capas de incidencia (datos reales). */
 export interface TacticalMunicipio {
   nombre: string;
+  /** Clave INEGI (cve_ent+cve_mun) — llave para amarrar con el polígono real del municipio. */
+  cveMuni?: string;
   lat: number;
   lng: number;
   nivel: string;
   delitos: number;
   tendencia: number;
+}
+
+interface MunicipioGeoJsonProperties {
+  cveMuni: string;
+  nombre: string;
+}
+
+// Cache a nivel de módulo: el archivo (~360KB) no cambia entre renders ni
+// entre montajes del mapa (Mapa/Zonas comparten el mismo TacticalMap), así
+// que se descarga una sola vez por sesión de la pestaña.
+let municipiosGeoJsonPromise: Promise<GeoJSON.FeatureCollection<GeoJSON.MultiPolygon | GeoJSON.Polygon, MunicipioGeoJsonProperties> | null> | null = null;
+function getMunicipiosGeoJson() {
+  if (!municipiosGeoJsonPromise) {
+    municipiosGeoJsonPromise = fetch("/data/edomex-municipios.geojson")
+      .then((r) => (r.ok ? r.json() : null))
+      .catch(() => null);
+  }
+  return municipiosGeoJsonPromise;
 }
 
 interface TacticalMapProps {
@@ -206,28 +226,38 @@ export default function TacticalMap({
     });
   }, [layers.heatmap, layers.municipios, layers.alertas, layers.policia, layers.limites, layers.zonaCircles]);
 
-  // ── Carga GeoJSON de límites municipales ──
+  // ── Carga límites municipales reales (INEGI, Marco Geoestadístico) ──
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
     const g = groups.current;
-    g.limites.clearLayers();
+    let cancelled = false;
 
-    // Genera polígonos aproximados alrededor de cada municipio.
-    // TODO: reemplazar con GeoJSON oficial INEGI cuando esté disponible.
-    municipios.forEach((mun) => {
-      const offset = 0.05; // aprox 5km — aproximación visual, no límite oficial
-      const bounds = [
-        [mun.lat - offset, mun.lng - offset],
-        [mun.lat + offset, mun.lng - offset],
-        [mun.lat + offset, mun.lng + offset],
-        [mun.lat - offset, mun.lng + offset],
-        [mun.lat - offset, mun.lng - offset],
-      ];
-      L.polyline(bounds as L.LatLngExpression[], {
-        color: "#00D4FF", weight: 1.5, opacity: 0.35, dashArray: "4,4",
+    getMunicipiosGeoJson().then((geojson) => {
+      if (cancelled) return;
+      g.limites.clearLayers();
+      if (!geojson) return; // sin conexión al asset — capa queda vacía, no rompe el mapa
+
+      const nivelPorCve = new Map(municipios.filter((m) => m.cveMuni).map((m) => [m.cveMuni, m.nivel]));
+      L.geoJSON(geojson, {
+        style: (feature) => {
+          const nivel = feature?.properties?.cveMuni ? nivelPorCve.get(feature.properties.cveMuni) : undefined;
+          return {
+            color: nivel ? nivelColor(nivel) : "#00D4FF",
+            weight: 1.5,
+            opacity: 0.6,
+            fillOpacity: 0.03,
+            fillColor: nivel ? nivelColor(nivel) : "#00D4FF",
+          };
+        },
+        onEachFeature: (feature, layer) => {
+          const nombre = feature.properties?.nombre;
+          if (nombre) layer.bindTooltip(nombre, { sticky: true, className: "tac-tip" });
+        },
       }).addTo(g.limites);
     });
+
+    return () => { cancelled = true; };
   }, [municipios]);
 
   // ── (Re)construye capas de incidencia desde datos reales (`municipios`) ──

@@ -39,7 +39,7 @@ export default function ZonasTab() {
 
   const { municipios: mapaData } = useIncidenciaMapa();
   const municipiosReal = useMemo<TacticalMunicipio[]>(
-    () => mapaData.map((m) => ({ nombre: m.municipio, lat: m.lat, lng: m.lng, nivel: m.nivel, delitos: m.incidentes, tendencia: m.tendencia })),
+    () => mapaData.map((m) => ({ nombre: m.municipio, cveMuni: m.codigoMunicipio, lat: m.lat, lng: m.lng, nivel: m.nivel, delitos: m.incidentes, tendencia: m.tendencia })),
     [mapaData],
   );
 

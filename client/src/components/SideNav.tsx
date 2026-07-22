@@ -7,8 +7,8 @@
 
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Shield, PanelLeftClose, PanelLeftOpen, Menu, X } from "lucide-react";
-import { type TabId, type NavItem, type NavGroup, groupsForRole } from "./navConfig";
-import { useDemoSession } from "@/contexts/DemoSessionContext";
+import { type TabId, type NavItem, type NavGroup, groupsForModules } from "./navConfig";
+import { useAccessibleModules } from "@/hooks/useModuleAccess";
 import { trpc } from "@/lib/trpc";
 
 /** Alertas no resueltas / incidentes abiertos — mismas fuentes reales que sus tabs. */
@@ -213,11 +213,11 @@ function SyncStatus() {
 
 export default function SideNav({ activeTab, onTabChange, collapsed, onCollapsedChange, canToggle = true }: SideNavProps) {
   const [mobileOpen, setMobileOpen] = useState(false);
-  const { role } = useDemoSession();
+  const { modules, isLoading: modulesLoading } = useAccessibleModules();
   const badges = useNavBadges();
   const groups = useMemo(
-    () => withRealBadges(groupsForRole(role), badges), // Analista no ve el grupo "Sistema".
-    [role, badges.alertas, badges.incidentes]
+    () => withRealBadges(groupsForModules(modulesLoading ? null : modules), badges),
+    [modulesLoading, modules, badges.alertas, badges.incidentes]
   );
 
   // Cierra la hoja "Más" al cambiar de módulo.

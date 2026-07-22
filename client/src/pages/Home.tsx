@@ -9,7 +9,7 @@ import { ShieldAlert } from "lucide-react";
 import Header from "@/components/Header";
 import { type TabId, TAB_IDS, canAccessTab } from "@/components/navConfig";
 import SideNav, { COLLAPSE_KEY } from "@/components/SideNav";
-import { useDemoSession } from "@/contexts/DemoSessionContext";
+import { useAccessibleModules } from "@/hooks/useModuleAccess";
 import MapaTab from "./tabs/MapaTab";
 import AlertasTab from "./tabs/AlertasTab";
 import IncidentesTab from "./tabs/IncidentesTab";
@@ -21,14 +21,16 @@ import IntegracionTab from "./tabs/IntegracionTab";
 import AdminTab from "./tabs/AdminTab";
 
 export default function Home() {
-  const { role } = useDemoSession();
+  const { modules, isLoading: modulesLoading } = useAccessibleModules();
+  const accessibleModules = modulesLoading ? null : modules;
   const [activeTab, setActiveTab] = useState<TabId>("tablero");
 
-  // Si el rol activo no puede ver el tab actual (p.ej. Analista en un tab de
-  // Sistema), regresa al Tablero. Defensa contra deep-links y cambios de rol.
+  // Si los módulos accesibles no alcanzan para el tab actual (p.ej. un rol sin
+  // acceso a Sistema), regresa al Tablero. Defensa contra deep-links.
   useEffect(() => {
-    if (!canAccessTab(role, activeTab)) setActiveTab("tablero");
-  }, [role, activeTab]);
+    if (!modulesLoading && !canAccessTab(accessibleModules, activeTab)) setActiveTab("tablero");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [modulesLoading, accessibleModules?.join(","), activeTab]);
   const [collapsed, setCollapsed] = useState<boolean>(() => {
     return localStorage.getItem(COLLAPSE_KEY) === "1";
   });
@@ -42,13 +44,14 @@ export default function Home() {
   useEffect(() => {
     const handler = (e: Event) => {
       const detail = (e as CustomEvent<string>).detail;
-      if (TAB_IDS.includes(detail as TabId) && canAccessTab(role, detail as TabId)) {
+      if (TAB_IDS.includes(detail as TabId) && canAccessTab(accessibleModules, detail as TabId)) {
         setActiveTab(detail as TabId);
       }
     };
     window.addEventListener("predix:navigate-tab", handler);
     return () => window.removeEventListener("predix:navigate-tab", handler);
-  }, [role]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [accessibleModules?.join(",")]);
 
   // Mide la altura REAL del header y la publica en --px-header-h. Así el rail
   // y el contenido se alinean aunque el header crezca (fuentes, wrap, zoom).
@@ -65,8 +68,8 @@ export default function Home() {
   }, []);
 
   const renderTab = () => {
-    // Defensa en profundidad: si el rol no alcanza el tab, no lo montamos.
-    if (!canAccessTab(role, activeTab)) {
+    // Defensa en profundidad: si los módulos accesibles no alcanzan, no lo montamos.
+    if (!canAccessTab(accessibleModules, activeTab)) {
       return (
         <div className="flex flex-col items-center justify-center h-[55vh] gap-4 text-center px-4">
           <ShieldAlert className="w-12 h-12 text-amber-400" />

@@ -22,15 +22,17 @@ export interface NavItem {
   badgeColor?: string;
 }
 
-// Roles de la demo (ver DemoSessionContext). Si un grupo omite `roles`,
-// es visible para todos los roles. "Sistema" se restringe a admin.
-export type NavRole = "admin" | "analista";
-
 export interface NavGroup {
   label: string;
   items: NavItem[];
-  /** Roles que pueden ver el grupo. Ausente = todos. */
-  roles?: NavRole[];
+  /**
+   * Módulo RBAC real (server/_core/infra/permissions.ts → MODULES) que debe
+   * tener canView=1 (vía auth.getAccessibleModules) para ver el grupo. Ausente
+   * = visible para cualquier sesión real. "Integraciones" no tiene módulo
+   * propio en el schema — comparte el gate de "admin" porque siempre vivió
+   * exclusivamente dentro de "Sistema".
+   */
+  requireModule?: string;
 }
 
 // Los badges de "Alertas"/"Incidentes" NO viven aquí — se calculan en tiempo
@@ -56,7 +58,7 @@ export const NAV_GROUPS: NavGroup[] = [
   },
   {
     label: "Sistema",
-    roles: ["admin"],
+    requireModule: "admin",
     items: [
       { id: "integracion", label: "Integraciones", icon: <Plug size={18} /> },
       { id: "admin", label: "Administración", icon: <ShieldCheck size={18} /> },
@@ -67,13 +69,16 @@ export const NAV_GROUPS: NavGroup[] = [
 // Lista plana de ids válidos (deep-links, validación).
 export const TAB_IDS: TabId[] = NAV_GROUPS.flatMap((g) => g.items.map((i) => i.id));
 
-/** Grupos visibles para un rol (null = sin sesión → sin restricción extra). */
-export function groupsForRole(role: NavRole | null): NavGroup[] {
-  if (!role) return NAV_GROUPS;
-  return NAV_GROUPS.filter((g) => !g.roles || g.roles.includes(role));
+/**
+ * Grupos visibles según los módulos RBAC reales accesibles al usuario
+ * (auth.getAccessibleModules). `modules === null` = todavía no se sabe
+ * (sesión cargando) → se ocultan los grupos restringidos por defecto.
+ */
+export function groupsForModules(modules: string[] | null): NavGroup[] {
+  return NAV_GROUPS.filter((g) => !g.requireModule || (modules?.includes(g.requireModule) ?? false));
 }
 
-/** ¿El rol puede acceder a este tab? */
-export function canAccessTab(role: NavRole | null, tab: TabId): boolean {
-  return groupsForRole(role).some((g) => g.items.some((i) => i.id === tab));
+/** ¿La sesión puede acceder a este tab? */
+export function canAccessTab(modules: string[] | null, tab: TabId): boolean {
+  return groupsForModules(modules).some((g) => g.items.some((i) => i.id === tab));
 }

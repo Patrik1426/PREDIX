@@ -7,7 +7,17 @@ import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent, within } from "@testing-library/react";
 import SideNav from "./SideNav";
 import { NAV_GROUPS, TAB_IDS } from "./navConfig";
-import { DemoSessionProvider } from "@/contexts/DemoSessionContext";
+
+// Módulos accesibles reales (auth.getAccessibleModules) — mutable para que
+// cada test pueda simular un rol distinto sin re-mockear el módulo entero.
+const { mockModulesRef } = vi.hoisted(() => ({
+  mockModulesRef: {
+    current: [
+      "mapa_geoespacial", "alertas", "incidentes", "predicciones",
+      "tablero", "zonas_delictivas", "chatbot", "admin",
+    ] as string[],
+  },
+}));
 
 // Badges reales (useNavBadges) vienen de trpc.alertas.listar/incidentes.listar —
 // se mockean con datos fijos: 3 alertas activas (2 resueltas de 5), 2 incidentes
@@ -39,29 +49,31 @@ vi.mock("@/lib/trpc", () => ({
         }),
       },
     },
+    auth: {
+      getAccessibleModules: {
+        useQuery: () => ({ data: mockModulesRef.current, isLoading: false }),
+      },
+    },
   },
 }));
 
-// Sin sesión demo (role = null) el rail muestra TODOS los grupos.
 function setup(overrides: Partial<React.ComponentProps<typeof SideNav>> = {}) {
   const onTabChange = vi.fn();
   const onCollapsedChange = vi.fn();
   render(
-    <DemoSessionProvider>
-      <SideNav
-        activeTab="tablero"
-        onTabChange={onTabChange}
-        collapsed={false}
-        onCollapsedChange={onCollapsedChange}
-        {...overrides}
-      />
-    </DemoSessionProvider>
+    <SideNav
+      activeTab="tablero"
+      onTabChange={onTabChange}
+      collapsed={false}
+      onCollapsedChange={onCollapsedChange}
+      {...overrides}
+    />
   );
   return { onTabChange, onCollapsedChange };
 }
 
 describe("SideNav", () => {
-  it("renderiza las 3 etiquetas de grupo", () => {
+  it("renderiza las 3 etiquetas de grupo (con acceso a admin)", () => {
     setup();
     for (const group of NAV_GROUPS) {
       expect(screen.getByText(group.label)).toBeInTheDocument();
@@ -121,8 +133,8 @@ describe("SideNav", () => {
     expect(within(sheet).getByText("Mapa de Calor")).toBeInTheDocument();
   });
 
-  it("rol Analista oculta el grupo 'Sistema' (Integraciones/Administración)", () => {
-    window.sessionStorage.setItem("predix:demo-session", "analista");
+  it("sin acceso al módulo 'admin' oculta el grupo 'Sistema' (Integraciones/Administración)", () => {
+    mockModulesRef.current = ["mapa_geoespacial", "alertas", "incidentes", "chatbot"];
     try {
       setup();
       expect(screen.queryByText("Sistema")).not.toBeInTheDocument();
@@ -132,7 +144,10 @@ describe("SideNav", () => {
       expect(screen.getByText("Operación")).toBeInTheDocument();
       expect(screen.getByText("Inteligencia")).toBeInTheDocument();
     } finally {
-      window.sessionStorage.removeItem("predix:demo-session");
+      mockModulesRef.current = [
+        "mapa_geoespacial", "alertas", "incidentes", "predicciones",
+        "tablero", "zonas_delictivas", "chatbot", "admin",
+      ];
     }
   });
 });

@@ -10,7 +10,6 @@ import { useLocation } from "wouter";
 import UserPanel, { type UserProfile } from "./UserPanel";
 import NotificationPanel from "./NotificationPanel";
 import { useAuth } from "@/_core/hooks/useAuth";
-import { useDemoSession, DEMO_ROLE_LABELS } from "@/contexts/DemoSessionContext";
 import { trpc } from "@/lib/trpc";
 
 // Etiquetas de los 7 roles institucionales reales (users.institutionalRole),
@@ -83,14 +82,11 @@ export default function Header() {
 
   // ── Auth hook for real logout ──
   const { user: authUser, isAuthenticated, logout } = useAuth();
-  const { role: demoRole, logout: demoLogout } = useDemoSession();
   const [, navigate] = useLocation();
 
-  // Etiqueta de rol a mostrar: el rol de la demo manda en la UI.
-  const demoRoleLabel = demoRole ? DEMO_ROLE_LABELS[demoRole] : null;
-
-  // Build user profile from real session data (auth.me) or fallback demo profile
-  // cuando no hay sesión real (solo posible antes del login, no debería verse).
+  // Build user profile from real session data (auth.me). El fallback solo se
+  // ve en el instante entre montar Home y que auth.me resuelva — RequireAuth
+  // (App.tsx) ya garantiza que si se llegó aquí hay sesión real.
   const user: UserProfile = authUser
     ? {
         nombre: authUser.name || "Usuario PREDIX",
@@ -136,11 +132,9 @@ export default function Header() {
     } catch (error) {
       console.error("Error al cerrar sesión:", error);
     } finally {
-      // Cierra la sesión demo y vuelve al login (gate de entrada).
-      demoLogout();
       navigate("/login", { replace: true });
     }
-  }, [isAuthenticated, logout, demoLogout, navigate]);
+  }, [isAuthenticated, logout, navigate]);
 
   // ── Settings handler ──
   const handleSettings = useCallback(() => {
@@ -361,7 +355,7 @@ export default function Header() {
                   color: HX.textMeta,
                 }}
               >
-                {(demoRoleLabel ?? user.rol).toUpperCase()}
+                {user.rol.toUpperCase()}
               </span>
               <ChevronDown
                 size={10}

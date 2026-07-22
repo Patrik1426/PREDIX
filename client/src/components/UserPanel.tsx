@@ -5,7 +5,7 @@
  * (rol/accesos los gestiona el administrador) y datos de sesión/auditoría.
  *
  * El rol y los niveles NO se editan aquí: en gobierno los asigna el admin.
- * La fuente del rol es DemoSessionContext.
+ * Los niveles de acceso vienen de auth.getAccessibleModules (RBAC real).
  */
 
 import { useEffect, useState } from "react";
@@ -13,10 +13,10 @@ import { createPortal } from "react-dom";
 import { toast } from "sonner";
 import {
   X, LogOut, AlertTriangle, Loader2, Check, Ban,
-  Settings, ChevronLeft, Lock, Phone, Save, Send, Clock, Fingerprint, MonitorSmartphone,
+  Settings, ChevronLeft, Lock, Phone, Save, Send, Clock, MonitorSmartphone,
 } from "lucide-react";
 import { NAV_GROUPS } from "./navConfig";
-import { useDemoSession, DEMO_ROLE_LABELS } from "@/contexts/DemoSessionContext";
+import { useAccessibleModules } from "@/hooks/useModuleAccess";
 
 const CONTACT_KEY = "predix:contact";
 
@@ -28,13 +28,6 @@ function readContact(): { telefono: string; extension: string } {
     /* ignore */
   }
   return { telefono: "", extension: "" };
-}
-
-function formatStamp(ms: number | null): string {
-  if (!ms) return "—";
-  return new Date(ms).toLocaleString("es-MX", {
-    day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit",
-  });
 }
 
 // El header tiene backdrop-filter → crea un containing block que atrapa a los
@@ -74,7 +67,7 @@ interface UserPanelProps {
 }
 
 export default function UserPanel({ user, onClose, onLogout }: UserPanelProps) {
-  const { role, loginAt, sessionId } = useDemoSession();
+  const { modules } = useAccessibleModules();
   const isMobile = useIsMobile();
   const [view, setView] = useState<"cred" | "cuenta">("cred");
   const [isLoggingOut, setIsLoggingOut] = useState(false);
@@ -101,14 +94,15 @@ export default function UserPanel({ user, onClose, onLogout }: UserPanelProps) {
     });
   };
 
-  const roleLabel = role ? DEMO_ROLE_LABELS[role] : user.rol;
+  const roleLabel = user.rol;
   const employeeId = user.employeeId || "—";
   const email = user.correo;
 
-  // Niveles de acceso = grupos de navegación visibles para el rol.
+  // Niveles de acceso reales: grupos de navegación cuyo módulo RBAC (si tiene)
+  // está en auth.getAccessibleModules del usuario autenticado.
   const clearances = NAV_GROUPS.map((g) => ({
     label: g.label,
-    enabled: !g.roles || (role ? g.roles.includes(role) : true),
+    enabled: !g.requireModule || modules.includes(g.requireModule),
   }));
 
   const initials = user.nombre
@@ -239,7 +233,7 @@ export default function UserPanel({ user, onClose, onLogout }: UserPanelProps) {
             </div>
           </div>
         )}
-        <p className="px-cred-version">PREDIX v1.0 · sesión demo</p>
+        <p className="px-cred-version">PREDIX v1.0</p>
       </div>
     </>
   );
@@ -325,15 +319,7 @@ export default function UserPanel({ user, onClose, onLogout }: UserPanelProps) {
         </div>
         <dl className="px-cred-data px-cred-data--stack">
           <div className="px-cred-row">
-            <dt>Inicio</dt>
-            <dd>{formatStamp(loginAt)}</dd>
-          </div>
-          <div className="px-cred-row">
-            <dt><Fingerprint size={10} style={{ display: "inline", verticalAlign: "-1px" }} /> ID sesión</dt>
-            <dd>{sessionId ?? "—"}</dd>
-          </div>
-          <div className="px-cred-row">
-            <dt>Últ. acceso</dt>
+            <dt>Inicio de sesión</dt>
             <dd>{user.ultimaConexion}</dd>
           </div>
         </dl>

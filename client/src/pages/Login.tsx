@@ -1,18 +1,14 @@
 // ============================================================
 // LOGIN — Consola de autorización táctica (PREDIX v2)
-// Gate de entrada de la demo. Asigna ROL (Administrador/Analista)
-// vía DemoSessionContext y entra a Home. Diseño: split console
-// con hero geoespacial EdoMéx + telemetría viva + credenciales.
+// Login institucional real (auth.institutionalLogin) contra la tabla users.
+// Diseño: split console con hero geoespacial EdoMéx + telemetría viva.
 // ============================================================
 
 import { useEffect, useState } from "react";
 import { useLocation } from "wouter";
 import { AlertCircle, ArrowRight, Eye, EyeOff } from "lucide-react";
 import { trpc } from "@/lib/trpc";
-import {
-  useDemoSession,
-  type DemoRole,
-} from "@/contexts/DemoSessionContext";
+import { useAuth } from "@/_core/hooks/useAuth";
 
 function useUtcClock() {
   const [time, setTime] = useState(() => new Date());
@@ -66,7 +62,7 @@ function GeoPanel() {
 
 export default function Login() {
   const [, navigate] = useLocation();
-  const { login, role } = useDemoSession();
+  const { isAuthenticated, refresh } = useAuth();
   const clock = useUtcClock();
 
   const [employeeId, setEmployeeId] = useState("");
@@ -76,18 +72,10 @@ export default function Login() {
   const [error, setError] = useState("");
   const loginMutation = trpc.auth.institutionalLogin.useMutation();
 
-  // Si ya hay sesión demo, salta el login.
+  // Si ya hay sesión real (cookie válida), salta el login.
   useEffect(() => {
-    if (role) navigate("/", { replace: true });
-  }, [role, navigate]);
-
-  const enter = (next: DemoRole) => {
-    login(next);
-    navigate("/", { replace: true });
-  };
-
-  const toDemoRole = (institutionalRole: string): DemoRole =>
-    institutionalRole === "admin" ? "admin" : "analista";
+    if (isAuthenticated) navigate("/", { replace: true });
+  }, [isAuthenticated, navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -97,30 +85,11 @@ export default function Login() {
       return;
     }
     try {
-      const result = await loginMutation.mutateAsync({ employeeId, email, password });
-      enter(toDemoRole(result.role));
+      await loginMutation.mutateAsync({ employeeId, email, password });
+      await refresh();
+      navigate("/", { replace: true });
     } catch {
       setError("Credenciales inválidas. Verifica tu número de empleado, correo y contraseña.");
-    }
-  };
-
-  // Coincide con los 7 usuarios institucionales reales sembrados (uno por rol,
-  // ver CLAUDE.md → Inconsistencia #2). Password temporal de scripts/seed-passwords.ts.
-  const QUICK_FILL: Record<DemoRole, { employeeId: string; email: string; password: string }> = {
-    admin: { employeeId: "EMP-001", email: "r.hernandez@edomex.gob.mx", password: "Demo@2026" },
-    analista: { employeeId: "EMP-003", email: "c.mendoza@edomex.gob.mx", password: "Demo@2026" },
-  };
-
-  const quickFill = async (r: DemoRole) => {
-    const c = QUICK_FILL[r];
-    setEmployeeId(c.employeeId);
-    setEmail(c.email);
-    setPassword(c.password);
-    try {
-      const result = await loginMutation.mutateAsync(c);
-      enter(toDemoRole(result.role));
-    } catch {
-      setError("No se pudo iniciar sesión con las credenciales de demo.");
     }
   };
 
@@ -246,32 +215,6 @@ export default function Login() {
               Iniciar sesión <ArrowRight size={16} />
             </button>
           </form>
-
-          <div className="px-login-divider">Acceso rápido demo</div>
-          <div className="px-login-roles">
-            <button type="button" className="px-login-role" onClick={() => quickFill("admin")}>
-              <span className="rname">
-                <span className="glyph">▣</span>
-                Administrador
-              </span>
-              <span className="rscope">
-                Operación · Inteligencia · Sistema
-                <br />
-                Acceso completo
-              </span>
-            </button>
-            <button type="button" className="px-login-role" onClick={() => quickFill("analista")}>
-              <span className="rname">
-                <span className="glyph">▤</span>
-                Analista
-              </span>
-              <span className="rscope">
-                Operación · Inteligencia
-                <br />
-                <span className="no">Sin acceso a Sistema</span>
-              </span>
-            </button>
-          </div>
         </section>
       </main>
 

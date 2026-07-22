@@ -302,6 +302,7 @@ export default function IntegracionTab() {
     try {
       const res = await utils.vault.retrieveSecret.fetch({ secretId: id });
       setRevealedValues(prev => ({ ...prev, [id]: res.value }));
+      utils.vault.getAllAuditLogs.invalidate();
     } catch (e) {
       onVaultMutError(e);
     }
@@ -314,6 +315,7 @@ export default function IntegracionTab() {
         const res = await utils.vault.retrieveSecret.fetch({ secretId: id });
         value = res.value;
         setRevealedValues(prev => ({ ...prev, [id]: res.value }));
+        utils.vault.getAllAuditLogs.invalidate();
       } catch (e) {
         onVaultMutError(e);
         return;

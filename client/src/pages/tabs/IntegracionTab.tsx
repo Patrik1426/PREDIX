@@ -414,10 +414,10 @@ export default function IntegracionTab() {
               {filteredIntegrations.map(integration => (
                 <div key={integration.id} className="cursor-pointer transition-all" onClick={() => { setSelectedIntegration(integration); setShowDetailDialog(true); }}
                   style={{ padding: "var(--px-3)", borderBottom: "1px solid var(--px-hairline)", boxShadow: `inset 3px 0 0 ${statusColor(integration.status)}` }}>
-                  {/* Línea 1: nombre + status */}
-                  <div className="flex items-center gap-2 mb-1">
+                  {/* Línea 1: nombre + status — envuelve en móvil en vez de comprimir el nombre */}
+                  <div className="flex items-center gap-2 mb-1 flex-wrap">
                     <span style={{ color: statusColor(integration.status) }}>{typeIcon(integration.type)}</span>
-                    <span className="truncate" style={{ fontFamily: "var(--px-body)", fontSize: "var(--px-text-sm)", fontWeight: 600, color: "var(--px-text)", flex: 1 }}>{integration.name}</span>
+                    <span style={{ fontFamily: "var(--px-body)", fontSize: "var(--px-text-sm)", fontWeight: 600, color: "var(--px-text)", flexBasis: "100%", minWidth: 0 }} className="sm:flex-1 sm:basis-auto truncate">{integration.name}</span>
                     {integration.origen === "real" ? (
                       <span className="px-delta" style={{ color: "var(--px-ok)", background: "color-mix(in srgb, var(--px-ok) 12%, transparent)" }}>DATOS REALES</span>
                     ) : (
@@ -450,10 +450,10 @@ export default function IntegracionTab() {
           <div className="space-y-4">
             {stats.expiredSecrets > 0 && (
               <TacticalCard className="p-3">
-                <div className="flex items-center" style={{ gap: "var(--px-3)" }}>
-                  <AlertTriangle size={16} style={{ color: "var(--px-crit)" }} />
-                  <span style={{ fontSize: "var(--px-text-base)", color: "var(--px-crit)", fontWeight: 600 }}>{stats.expiredSecrets} secreto(s) expirado(s) requieren rotación inmediata</span>
-                  <button onClick={() => { secrets.filter(s => estadoSecreto(s) === "expired").forEach(s => handleRotateSecret(s.id)); }} className="ml-auto px-3 py-1 rounded" style={{ background: "color-mix(in srgb, var(--px-crit) 15%, transparent)", border: "1px solid color-mix(in srgb, var(--px-crit) 30%, transparent)", color: "var(--px-crit)", fontSize: "var(--px-text-sm)", fontWeight: 600 }}>ROTAR TODOS</button>
+                <div className="flex items-center flex-wrap" style={{ gap: "var(--px-3)" }}>
+                  <AlertTriangle size={16} style={{ color: "var(--px-crit)", flexShrink: 0 }} />
+                  <span style={{ fontSize: "var(--px-text-base)", color: "var(--px-crit)", fontWeight: 600, flex: "1 1 200px" }}>{stats.expiredSecrets} secreto(s) expirado(s) requieren rotación inmediata</span>
+                  <button onClick={() => { secrets.filter(s => estadoSecreto(s) === "expired").forEach(s => handleRotateSecret(s.id)); }} className="sm:ml-auto px-3 py-1 rounded" style={{ background: "color-mix(in srgb, var(--px-crit) 15%, transparent)", border: "1px solid color-mix(in srgb, var(--px-crit) 30%, transparent)", color: "var(--px-crit)", fontSize: "var(--px-text-sm)", fontWeight: 600 }}>ROTAR TODOS</button>
                 </div>
               </TacticalCard>
             )}
@@ -462,7 +462,54 @@ export default function IntegracionTab() {
                 <span className="px-section-title">CREDENCIALES ALMACENADAS</span>
                 <button onClick={() => setShowNewSecretDialog(true)} className="flex items-center gap-1 px-3 py-1 rounded" style={{ background: "color-mix(in srgb, var(--px-brand) 10%, transparent)", border: "1px solid color-mix(in srgb, var(--px-brand) 20%, transparent)", color: "var(--px-brand)", fontSize: "var(--px-text-sm)", fontWeight: 600 }}><Plus size={12} /> AGREGAR SECRETO</button>
               </div>
-              <div className="overflow-x-auto">
+              {secrets.length === 0 && (
+                <div className="px-3 py-4 text-center" style={{ color: "var(--px-text-faint)", fontFamily: "var(--px-mono)", fontSize: "var(--px-text-sm)" }}>Bóveda vacía (o sin conexión a BD) — agrega un secreto para empezar.</div>
+              )}
+
+              {/* Móvil (<md): lista de tarjetas — la tabla no cabe sin scroll horizontal */}
+              <div className="lg:hidden divide-y" style={{ borderColor: "var(--px-hairline)" }}>
+                {secrets.map(secret => {
+                  const estado = estadoSecreto(secret);
+                  const dias = diasParaVencer(secret);
+                  const revelado = revealedValues[secret.id];
+                  return (
+                    <div key={secret.id} className="p-3" style={{ borderColor: "var(--px-hairline)", fontFamily: "var(--px-mono)" }}>
+                      <div className="flex items-center gap-2 mb-2 flex-wrap">
+                        <Lock size={12} style={{ color: "var(--px-brand)", flexShrink: 0 }} />
+                        <span style={{ color: "var(--px-text)", fontWeight: 600, fontSize: "var(--px-text-sm)", flex: "1 1 auto" }}>{secret.secretName}</span>
+                        <span className="px-2 py-0.5 rounded" style={{ background: `color-mix(in srgb, ${statusColor(estado)} 10%, transparent)`, color: statusColor(estado), fontSize: "var(--px-text-xs)", fontWeight: 600 }}>{statusLabel(estado)}</span>
+                      </div>
+                      <div className="flex items-center gap-2 mb-2 flex-wrap" style={{ fontSize: "var(--px-text-xs)" }}>
+                        <span className="px-2 py-0.5 rounded" style={{ background: "color-mix(in srgb, var(--px-brand) 10%, transparent)", color: "var(--px-brand)" }}>{secret.secretType}</span>
+                        <span style={{ color: "var(--px-text-muted)" }}>{nombreIntegracion(secret.integrationId)}</span>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 mb-2" style={{ fontSize: "var(--px-text-xs)" }}>
+                        <div>
+                          <div className="px-eyebrow">Valor</div>
+                          <div className="truncate" style={{ color: "var(--px-text-muted)" }}>{revelado === undefined ? "••••••••••••" : revelado}</div>
+                        </div>
+                        <div>
+                          <div className="px-eyebrow">Expira en</div>
+                          <div style={{ color: dias === null ? "var(--px-text-muted)" : dias <= 0 ? "var(--px-crit)" : dias <= 15 ? "var(--px-warn)" : "var(--px-ok)" }}>{dias === null ? "Sin programar" : dias <= 0 ? "EXPIRADO" : `${dias} días`}</div>
+                        </div>
+                        <div>
+                          <div className="px-eyebrow">Última rotación</div>
+                          <div style={{ color: "var(--px-text-muted)" }}>{secret.lastRotatedAt ? new Date(secret.lastRotatedAt).toLocaleDateString("es-MX") : "—"}</div>
+                        </div>
+                      </div>
+                      <div className="flex gap-1 justify-end">
+                        <button onClick={() => toggleSecretVisibility(secret.id)} className="p-1.5 rounded" style={{ background: "color-mix(in srgb, var(--px-brand) 8%, transparent)" }} title={revelado === undefined ? "Mostrar" : "Ocultar"} aria-label={revelado === undefined ? "Mostrar secreto" : "Ocultar secreto"}>{revelado === undefined ? <Eye size={13} style={{ color: "var(--px-text-muted)" }} /> : <EyeOff size={13} style={{ color: "var(--px-brand)" }} />}</button>
+                        <button onClick={() => copySecret(secret.id)} className="p-1.5 rounded" style={{ background: "color-mix(in srgb, var(--px-brand) 8%, transparent)" }} title="Copiar" aria-label="Copiar secreto"><Copy size={13} style={{ color: "var(--px-text-muted)" }} /></button>
+                        <button onClick={() => handleRotateSecret(secret.id)} className="p-1.5 rounded" style={{ background: "color-mix(in srgb, var(--px-brand) 8%, transparent)" }} title="Rotar" aria-label="Rotar secreto"><RefreshCw size={13} style={{ color: "var(--px-brand)" }} /></button>
+                        <button onClick={() => handleDeleteSecret(secret.id)} className="p-1.5 rounded" style={{ background: "color-mix(in srgb, var(--px-crit) 8%, transparent)" }} title="Eliminar" aria-label="Eliminar secreto"><Trash2 size={13} style={{ color: "var(--px-crit)" }} /></button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Escritorio (md+): tabla completa */}
+              <div className="hidden lg:block overflow-x-auto">
               <table className="w-full" style={{ fontFamily: "var(--px-mono)", fontSize: "var(--px-text-sm)", minWidth: "800px" }}>
                 <thead>
                   <tr style={{ background: "color-mix(in srgb, var(--px-brand) 4%, transparent)" }}>
@@ -472,9 +519,6 @@ export default function IntegracionTab() {
                   </tr>
                 </thead>
                 <tbody>
-                  {secrets.length === 0 && (
-                    <tr><td colSpan={8} className="px-3 py-4 text-center" style={{ color: "var(--px-text-faint)" }}>Bóveda vacía (o sin conexión a BD) — agrega un secreto para empezar.</td></tr>
-                  )}
                   {secrets.map(secret => {
                     const estado = estadoSecreto(secret);
                     const dias = diasParaVencer(secret);
@@ -517,13 +561,33 @@ export default function IntegracionTab() {
               </div>
             </div>
             <TacticalCard className="overflow-hidden">
-              <div className="overflow-x-auto">
+              {auditLogs.length === 0 && (
+                <div className="px-4 py-4 text-center" style={{ color: "var(--px-text-faint)", fontFamily: "var(--px-mono)", fontSize: "var(--px-text-sm)" }}>Sin actividad registrada todavía (o sin conexión a BD).</div>
+              )}
+
+              {/* Móvil (<md): lista de tarjetas */}
+              <div className="lg:hidden divide-y" style={{ borderColor: "var(--px-hairline)" }}>
+                {auditLogs.map(entry => (
+                  <div key={entry.id} className="p-3" style={{ fontFamily: "var(--px-mono)" }}>
+                    <div className="flex items-center gap-2 mb-1 flex-wrap">
+                      <span className="px-2 py-0.5 rounded" style={{ background: "color-mix(in srgb, var(--px-brand) 10%, transparent)", color: "var(--px-brand)", fontSize: "var(--px-text-xs)" }}>{entry.action}</span>
+                      <span className="px-2 py-0.5 rounded" style={{ background: `color-mix(in srgb, ${statusColor(entry.status.toLowerCase())} 10%, transparent)`, color: statusColor(entry.status.toLowerCase()), fontSize: "var(--px-text-xs)", fontWeight: 600 }}>{statusLabel(entry.status.toLowerCase())}</span>
+                      <span style={{ color: "var(--px-text)", fontSize: "var(--px-text-xs)", marginLeft: "auto" }}>Usuario #{entry.userId}</span>
+                    </div>
+                    <div style={{ color: "var(--px-text-muted)", fontSize: "var(--px-text-xs)" }}>{nombreIntegracion(entry.integrationId)}</div>
+                    <div className="flex items-center justify-between" style={{ color: "var(--px-text-faint)", fontSize: "var(--px-text-xs)" }}>
+                      <span>{new Date(entry.timestamp).toLocaleString("es-MX")}</span>
+                      <span>{entry.ipAddress ?? "—"}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Escritorio (md+): tabla completa */}
+              <div className="hidden lg:block overflow-x-auto">
               <table className="w-full" style={{ fontFamily: "var(--px-mono)", fontSize: "var(--px-text-sm)", minWidth: "700px" }}>
                 <thead><tr style={{ background: "color-mix(in srgb, var(--px-brand) 4%, transparent)" }}>{["TIMESTAMP", "USUARIO", "ACCIÓN", "INTEGRACIÓN", "ESTADO", "IP"].map(h => (<th key={h} className="px-4 py-2 text-left" style={{ color: "var(--px-text-muted)", fontSize: "var(--px-text-xs)", letterSpacing: "0.08em", fontWeight: 600 }}>{h}</th>))}</tr></thead>
                 <tbody>
-                  {auditLogs.length === 0 && (
-                    <tr><td colSpan={6} className="px-4 py-4 text-center" style={{ color: "var(--px-text-faint)" }}>Sin actividad registrada todavía (o sin conexión a BD).</td></tr>
-                  )}
                   {auditLogs.map(entry => (
                     <tr key={entry.id} style={{ borderBottom: "1px solid var(--px-hairline)" }}>
                       <td className="px-4 py-2.5" style={{ color: "var(--px-text-muted)" }}>{new Date(entry.timestamp).toLocaleString("es-MX")}</td>
@@ -545,7 +609,7 @@ export default function IntegracionTab() {
         {activeSubTab === "convertidor" && (
           <div className="space-y-4">
             <TacticalCard className="p-4">
-              <div className="flex items-center justify-between" style={{ marginBottom: "var(--px-4)" }}>
+              <div className="flex items-center justify-between flex-wrap gap-2" style={{ marginBottom: "var(--px-4)" }}>
                 <span className="px-section-title">CONVERTIDOR DE DATOS</span>
                 <div className="flex gap-2">
                   {(["xml2json", "json2xml"] as const).map(dir => (

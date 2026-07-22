@@ -29,7 +29,6 @@ interface User {
   lastLogin: string;
   loginCount: number;
   createdAt: string;
-  modules: string[];
   identification?: {
     type: "patrulla" | "grupo_operativo" | "gps" | "red_celular";
     value: string;
@@ -59,29 +58,22 @@ interface ModuleActivity {
   trend: number;
 }
 
-/* ─── All Modules ─── */
-const ALL_MODULES = [
-  "Mapa Geoespacial", "Alertas", "Incidentes", "Predicciones",
-  "Tablero", "Mapa de Calor", "Chatbot IA", "Dashboard",
-  "Integraciones", "Administración", "Reportes", "Exportación"
-];
-
 /* ─── Initial Demo Data ─── */
 const INITIAL_USERS: User[] = [
-  { id: 1, name: "Cmdte. Roberto Hernández", email: "r.hernandez@edomex.gob.mx", role: "Administrador", department: "Dirección General de Seguridad", status: "active", lastLogin: "17/04/2026 20:15", loginCount: 342, createdAt: "2025-01-15", modules: ["Todos"] },
-  { id: 2, name: "Cap. María Elena Torres", email: "me.torres@edomex.gob.mx", role: "Supervisor", department: "C5 Estado de México", status: "active", lastLogin: "17/04/2026 19:48", loginCount: 287, createdAt: "2025-02-20", modules: ["Mapa Geoespacial", "Alertas", "Incidentes", "Tablero"] },
-  { id: 3, name: "Lic. Carlos Mendoza", email: "c.mendoza@edomex.gob.mx", role: "Analista", department: "Unidad de Inteligencia", status: "active", lastLogin: "17/04/2026 18:30", loginCount: 198, createdAt: "2025-03-10", modules: ["Predicciones", "Mapa de Calor", "Tablero"] },
-  { id: 4, name: "Ing. Patricia Ramírez", email: "p.ramirez@edomex.gob.mx", role: "Operador", department: "Centro de Monitoreo", status: "active", lastLogin: "17/04/2026 20:10", loginCount: 456, createdAt: "2025-01-20", modules: ["Mapa Geoespacial", "Alertas", "Incidentes"] },
-  { id: 5, name: "Mtro. Jorge Sánchez", email: "j.sanchez@edomex.gob.mx", role: "Analista", department: "Prevención del Delito", status: "active", lastLogin: "17/04/2026 17:22", loginCount: 145, createdAt: "2025-04-05", modules: ["Predicciones", "Tablero", "Dashboard"] },
-  { id: 6, name: "Lic. Ana García López", email: "a.garcia@edomex.gob.mx", role: "Consulta", department: "Fiscalía General", status: "inactive", lastLogin: "15/04/2026 10:15", loginCount: 67, createdAt: "2025-05-12", modules: ["Tablero", "Dashboard"] },
-  { id: 7, name: "Cap. Fernando Díaz", email: "f.diaz@edomex.gob.mx", role: "Comandante", department: "Policía Estatal", status: "active", lastLogin: "17/04/2026 16:45", loginCount: 312, createdAt: "2025-02-01", modules: ["Mapa Geoespacial", "Alertas", "Incidentes", "Chatbot IA"], identification: { type: "grupo_operativo", value: "GRUPO ALFA-7", lat: 19.2933, lng: -99.6533, lastUpdate: "17/04/2026 20:18" } },
-  { id: 8, name: "Ing. Luis Morales", email: "l.morales@edomex.gob.mx", role: "Operador", department: "TI - Infraestructura", status: "suspended", lastLogin: "10/04/2026 09:00", loginCount: 89, createdAt: "2025-06-15", modules: ["Integraciones"] },
-  { id: 9, name: "Dra. Sofía Vargas", email: "s.vargas@edomex.gob.mx", role: "Analista", department: "Estadística Criminal", status: "active", lastLogin: "17/04/2026 19:55", loginCount: 234, createdAt: "2025-03-25", modules: ["Predicciones", "Mapa de Calor", "Dashboard"] },
-  { id: 10, name: "Lic. Miguel Ángel Reyes", email: "ma.reyes@edomex.gob.mx", role: "Consulta", department: "Secretaría de Gobierno", status: "active", lastLogin: "17/04/2026 14:30", loginCount: 45, createdAt: "2025-07-01", modules: ["Dashboard", "Tablero"] },
-  { id: 11, name: "Ofc. Pedro Martínez Luna", email: "p.martinez@edomex.gob.mx", role: "Policía", department: "Sector Ecatepec Norte", status: "active", lastLogin: "17/04/2026 20:20", loginCount: 78, createdAt: "2025-08-10", modules: ["Mapa Geoespacial", "Alertas"], identification: { type: "patrulla", value: "P-4521", lat: 19.6010, lng: -99.0500, lastUpdate: "17/04/2026 20:22" } },
-  { id: 12, name: "Ofc. Laura Jiménez Ríos", email: "l.jimenez@edomex.gob.mx", role: "Policía", department: "Sector Naucalpan Centro", status: "active", lastLogin: "17/04/2026 20:18", loginCount: 56, createdAt: "2025-09-01", modules: ["Mapa Geoespacial", "Alertas"], identification: { type: "patrulla", value: "P-3287", lat: 19.4786, lng: -99.2394, lastUpdate: "17/04/2026 20:19" } },
-  { id: 13, name: "Ofc. Ricardo Flores Vega", email: "r.flores@edomex.gob.mx", role: "Policía", department: "Sector Toluca Sur", status: "active", lastLogin: "17/04/2026 20:05", loginCount: 92, createdAt: "2025-07-20", modules: ["Mapa Geoespacial", "Alertas"], identification: { type: "gps", value: "GPS-TLK-0891", lat: 19.2826, lng: -99.6557, lastUpdate: "17/04/2026 20:21" } },
-  { id: 14, name: "Cmdte. Alejandro Ruiz Ortiz", email: "a.ruiz@edomex.gob.mx", role: "Comandante", department: "Zona Oriente", status: "active", lastLogin: "17/04/2026 19:30", loginCount: 189, createdAt: "2025-03-15", modules: ["Mapa Geoespacial", "Alertas", "Incidentes", "Tablero"], identification: { type: "grupo_operativo", value: "GRUPO DELTA-3", lat: 19.3560, lng: -98.9820, lastUpdate: "17/04/2026 20:15" } },
+  { id: 1, name: "Cmdte. Roberto Hernández", email: "r.hernandez@edomex.gob.mx", role: "Administrador", department: "Dirección General de Seguridad", status: "active", lastLogin: "17/04/2026 20:15", loginCount: 342, createdAt: "2025-01-15" },
+  { id: 2, name: "Cap. María Elena Torres", email: "me.torres@edomex.gob.mx", role: "Supervisor", department: "C5 Estado de México", status: "active", lastLogin: "17/04/2026 19:48", loginCount: 287, createdAt: "2025-02-20" },
+  { id: 3, name: "Lic. Carlos Mendoza", email: "c.mendoza@edomex.gob.mx", role: "Analista", department: "Unidad de Inteligencia", status: "active", lastLogin: "17/04/2026 18:30", loginCount: 198, createdAt: "2025-03-10" },
+  { id: 4, name: "Ing. Patricia Ramírez", email: "p.ramirez@edomex.gob.mx", role: "Operador", department: "Centro de Monitoreo", status: "active", lastLogin: "17/04/2026 20:10", loginCount: 456, createdAt: "2025-01-20" },
+  { id: 5, name: "Mtro. Jorge Sánchez", email: "j.sanchez@edomex.gob.mx", role: "Analista", department: "Prevención del Delito", status: "active", lastLogin: "17/04/2026 17:22", loginCount: 145, createdAt: "2025-04-05" },
+  { id: 6, name: "Lic. Ana García López", email: "a.garcia@edomex.gob.mx", role: "Consulta", department: "Fiscalía General", status: "inactive", lastLogin: "15/04/2026 10:15", loginCount: 67, createdAt: "2025-05-12" },
+  { id: 7, name: "Cap. Fernando Díaz", email: "f.diaz@edomex.gob.mx", role: "Comandante", department: "Policía Estatal", status: "active", lastLogin: "17/04/2026 16:45", loginCount: 312, createdAt: "2025-02-01", identification: { type: "grupo_operativo", value: "GRUPO ALFA-7", lat: 19.2933, lng: -99.6533, lastUpdate: "17/04/2026 20:18" } },
+  { id: 8, name: "Ing. Luis Morales", email: "l.morales@edomex.gob.mx", role: "Operador", department: "TI - Infraestructura", status: "suspended", lastLogin: "10/04/2026 09:00", loginCount: 89, createdAt: "2025-06-15" },
+  { id: 9, name: "Dra. Sofía Vargas", email: "s.vargas@edomex.gob.mx", role: "Analista", department: "Estadística Criminal", status: "active", lastLogin: "17/04/2026 19:55", loginCount: 234, createdAt: "2025-03-25" },
+  { id: 10, name: "Lic. Miguel Ángel Reyes", email: "ma.reyes@edomex.gob.mx", role: "Consulta", department: "Secretaría de Gobierno", status: "active", lastLogin: "17/04/2026 14:30", loginCount: 45, createdAt: "2025-07-01" },
+  { id: 11, name: "Ofc. Pedro Martínez Luna", email: "p.martinez@edomex.gob.mx", role: "Policía", department: "Sector Ecatepec Norte", status: "active", lastLogin: "17/04/2026 20:20", loginCount: 78, createdAt: "2025-08-10", identification: { type: "patrulla", value: "P-4521", lat: 19.6010, lng: -99.0500, lastUpdate: "17/04/2026 20:22" } },
+  { id: 12, name: "Ofc. Laura Jiménez Ríos", email: "l.jimenez@edomex.gob.mx", role: "Policía", department: "Sector Naucalpan Centro", status: "active", lastLogin: "17/04/2026 20:18", loginCount: 56, createdAt: "2025-09-01", identification: { type: "patrulla", value: "P-3287", lat: 19.4786, lng: -99.2394, lastUpdate: "17/04/2026 20:19" } },
+  { id: 13, name: "Ofc. Ricardo Flores Vega", email: "r.flores@edomex.gob.mx", role: "Policía", department: "Sector Toluca Sur", status: "active", lastLogin: "17/04/2026 20:05", loginCount: 92, createdAt: "2025-07-20", identification: { type: "gps", value: "GPS-TLK-0891", lat: 19.2826, lng: -99.6557, lastUpdate: "17/04/2026 20:21" } },
+  { id: 14, name: "Cmdte. Alejandro Ruiz Ortiz", email: "a.ruiz@edomex.gob.mx", role: "Comandante", department: "Zona Oriente", status: "active", lastLogin: "17/04/2026 19:30", loginCount: 189, createdAt: "2025-03-15", identification: { type: "grupo_operativo", value: "GRUPO DELTA-3", lat: 19.3560, lng: -98.9820, lastUpdate: "17/04/2026 20:15" } },
 ];
 
 const ROLE_DESCRIPTIONS: Record<string, string> = {
@@ -231,7 +223,6 @@ export default function AdminTab() {
         lastLogin: u.lastSignedIn ? new Date(u.lastSignedIn).toLocaleString("es-MX") : "—",
         loginCount: 0,
         createdAt: new Date(u.createdAt).toISOString().split("T")[0],
-        modules: ["Dashboard"],
       }));
     }
     return INITIAL_USERS;
@@ -316,7 +307,6 @@ export default function AdminTab() {
   // New user form
   const [newUser, setNewUser] = useState({
     name: "", email: "", department: "", cargo: "", role: "Operador", status: "active" as "active" | "inactive",
-    modules: [] as string[],
     idType: "patrulla" as "patrulla" | "grupo_operativo" | "gps" | "red_celular",
     idValue: "", lat: "", lng: "", password: "",
   });
@@ -376,7 +366,7 @@ export default function AdminTab() {
       }),
     });
     setShowNewUserDialog(false);
-    setNewUser({ name: "", email: "", department: "", cargo: "", role: "Operador", status: "active", modules: [], idType: "patrulla", idValue: "", lat: "", lng: "", password: "" });
+    setNewUser({ name: "", email: "", department: "", cargo: "", role: "Operador", status: "active", idType: "patrulla", idValue: "", lat: "", lng: "", password: "" });
   };
 
   /* ─── Toggle User Status ─── */
@@ -459,14 +449,6 @@ export default function AdminTab() {
     }).catch(onRolePermError);
     setShowEditPermissionsDialog(false);
     setEditingRole(null);
-  };
-
-  /* ─── Toggle Module ─── */
-  const toggleModule = (mod: string) => {
-    setNewUser(prev => ({
-      ...prev,
-      modules: prev.modules.includes(mod) ? prev.modules.filter(m => m !== mod) : [...prev.modules, mod]
-    }));
   };
 
   const needsIdentification = newUser.role === "Policía" || newUser.role === "Comandante";
@@ -854,19 +836,6 @@ export default function AdminTab() {
                 </p>
               </div>
             )}
-
-            {/* Modules */}
-            <div style={{ marginTop: "var(--px-3)" }}>
-              <label className="px-label">MODULOS AUTORIZADOS</label>
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 mt-1">
-                {ALL_MODULES.map(mod => (
-                  <label key={mod} className="flex items-center gap-2 px-2 py-1.5 rounded cursor-pointer" style={{ background: newUser.modules.includes(mod) ? "color-mix(in srgb, var(--px-brand) 12%, transparent)" : "var(--px-surface)", border: `1px solid ${newUser.modules.includes(mod) ? "color-mix(in srgb, var(--px-brand) 30%, transparent)" : "var(--px-hairline)"}` }}>
-                    <input type="checkbox" checked={newUser.modules.includes(mod)} onChange={() => toggleModule(mod)} className="accent-cyan-500" />
-                    <span style={{ fontFamily: "var(--px-mono)", fontSize: "var(--px-text-xs)", color: newUser.modules.includes(mod) ? "var(--px-brand)" : "var(--px-text)" }}>{mod}</span>
-                  </label>
-                ))}
-              </div>
-            </div>
 
             <div className="flex gap-2" style={{ marginTop: "var(--px-5)" }}>
               <button onClick={() => setShowNewUserDialog(false)} className="flex-1 px-4 py-2 rounded" style={{ border: "1px solid var(--px-hairline)", color: "var(--px-text-muted)", fontSize: "var(--px-text-base)", fontWeight: 600 }}>CANCELAR</button>

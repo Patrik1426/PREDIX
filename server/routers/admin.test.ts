@@ -113,6 +113,33 @@ describe("admin.updateRolePermission", () => {
       caller.admin.updateRolePermission({ role: "operador", module: "admin", canView: true, canEdit: false, canDelete: false, canExport: false })
     ).rejects.toThrow(/BD no disponible/);
   });
+
+  it("rechaza con BAD_REQUEST si se intenta quitar canEdit al propio rol admin sobre el módulo admin (auto-bloqueo)", async () => {
+    const caller = appRouter.createCaller(createContext(AUTH_USER));
+    try {
+      await caller.admin.updateRolePermission({ role: "admin", module: "admin", canView: true, canEdit: false, canDelete: true, canExport: true });
+      throw new Error("esperaba que rechazara");
+    } catch (e) {
+      expect((e as TRPCError).code).toBe("BAD_REQUEST");
+    }
+  });
+
+  it("rechaza con BAD_REQUEST si se intenta quitar canView al propio rol admin sobre el módulo admin (auto-bloqueo)", async () => {
+    const caller = appRouter.createCaller(createContext(AUTH_USER));
+    try {
+      await caller.admin.updateRolePermission({ role: "admin", module: "admin", canView: false, canEdit: true, canDelete: true, canExport: true });
+      throw new Error("esperaba que rechazara");
+    } catch (e) {
+      expect((e as TRPCError).code).toBe("BAD_REQUEST");
+    }
+  });
+
+  it("permite editar canDelete/canExport del rol admin sobre el módulo admin (solo View/Edit están protegidos)", async () => {
+    const caller = appRouter.createCaller(createContext(AUTH_USER));
+    await expect(
+      caller.admin.updateRolePermission({ role: "admin", module: "admin", canView: true, canEdit: true, canDelete: false, canExport: false })
+    ).rejects.toThrow(/BD no disponible/); // pasa la guarda de auto-bloqueo, truena solo por modo degradado
+  });
 });
 
 describe("admin.resetRolePermissions", () => {

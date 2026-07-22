@@ -7,6 +7,7 @@ import { MODULES } from "../_core/infra/permissions";
 import { z } from "zod";
 import { getVaultManager } from "../services/vault/vaultManager";
 import { getEncryptionService } from "../services/vault/encryptionService";
+import { logAudit } from "../config/auditLog";
 
 const vaultManager = getVaultManager();
 const encryptionService = getEncryptionService();
@@ -194,7 +195,17 @@ export const vaultRouter = router({
   /**
    * Borra todo el historial de auditoría de la bóveda — destructivo, solo canDelete
    */
-  clearAuditLogs: requirePermission(MODULES.ADMIN, "canDelete").mutation(async () => {
+  clearAuditLogs: requirePermission(MODULES.ADMIN, "canDelete").mutation(async ({ ctx }) => {
+    // Se registra en audit_log (tabla separada, no se borra con esto) ANTES de
+    // truncar secret_audit_log — de otro modo el borrado de la evidencia
+    // forense de la Bóveda quedaría sin ningún rastro de quién lo hizo.
+    await logAudit({
+      userId: ctx.user.id,
+      action: "CLEAR_VAULT_AUDIT_LOG",
+      module: "vault",
+      details: "Se limpió por completo el historial de auditoría de la Bóveda de Secretos",
+      ip: ctx.req.ip || "unknown",
+    });
     await vaultManager.clearAuditLogs();
     return { success: true, message: "Auditoría de la bóveda limpiada" };
   }),

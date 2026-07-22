@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { TRPCError } from "@trpc/server";
 import { requirePermission, router } from "../_core/infra/trpc";
 import { getDb } from "../config/db";
 import { auditLog } from "../../drizzle/schema";
@@ -46,6 +47,15 @@ export const adminRouter = router({
       canExport: z.boolean(),
     }))
     .mutation(async ({ input, ctx }) => {
+      // Evita el auto-bloqueo: sin esto, un admin podría quitarse a sí mismo
+      // (y a todo el rol admin) el acceso al propio módulo de Administración
+      // sin ninguna forma de revertirlo salvo editar la BD directo.
+      if (input.role === "admin" && input.module === MODULES.ADMIN && (!input.canView || !input.canEdit)) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "No se puede quitar acceso de Ver/Editar al rol admin sobre el módulo de Administración — dejaría a todos los administradores sin poder revertirlo.",
+        });
+      }
       await updateRolePermission(input.role, input.module, {
         canView: input.canView ? 1 : 0,
         canEdit: input.canEdit ? 1 : 0,

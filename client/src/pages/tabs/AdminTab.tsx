@@ -50,13 +50,19 @@ interface AuditLog {
   status: "success" | "failed" | "warning";
 }
 
-interface ModuleActivity {
-  module: string;
-  accesses: number;
-  uniqueUsers: number;
-  avgDuration: string;
-  trend: number;
-}
+/**
+ * Etiquetas de los módulos que SÍ escriben en audit_log (server/config/auditLog.ts
+ * callers) — distinto de MODULE_LABELS (los 8 módulos con RBAC), porque acá no
+ * hay "usuarios"/"vault", y "admin" se registra como "administracion".
+ */
+const ACTIVITY_MODULE_LABELS: Record<string, string> = {
+  alertas: "Alertas",
+  incidentes: "Incidentes",
+  usuarios: "Usuarios",
+  vault: "Bóveda de Secretos",
+  chatbot: "Asistente IA",
+  administracion: "Administración",
+};
 
 /* ─── Initial Demo Data ─── */
 const INITIAL_USERS: User[] = [
@@ -99,18 +105,6 @@ const DEMO_AUDIT_LOGS: AuditLog[] = [
   { id: 10, timestamp: "17/04/2026 18:30:15", user: "Cmdte. Roberto Hernández", action: "MODIFY_USER", module: "Administración", detail: "Suspensión de usuario: l.morales@edomex.gob.mx", ip: "10.0.1.45", status: "success" },
   { id: 11, timestamp: "17/04/2026 18:15:00", user: "Sistema", action: "AUTO_BACKUP", module: "Sistema", detail: "Respaldo automático de base de datos completado", ip: "127.0.0.1", status: "success" },
   { id: 12, timestamp: "17/04/2026 17:58:30", user: "Lic. Miguel Ángel Reyes", action: "VIEW_REPORT", module: "Tablero", detail: "Consulta de estadísticas mensuales", ip: "10.0.4.22", status: "success" },
-];
-
-const MODULE_ACTIVITY: ModuleActivity[] = [
-  { module: "Mapa Geoespacial", accesses: 1247, uniqueUsers: 6, avgDuration: "12:34", trend: 15.2 },
-  { module: "Alertas", accesses: 856, uniqueUsers: 5, avgDuration: "08:15", trend: 8.7 },
-  { module: "Incidentes", accesses: 723, uniqueUsers: 4, avgDuration: "15:42", trend: -3.2 },
-  { module: "Modelo Predictivo", accesses: 445, uniqueUsers: 3, avgDuration: "22:18", trend: 25.6 },
-  { module: "Tablero Avanzado", accesses: 1089, uniqueUsers: 8, avgDuration: "06:45", trend: 12.1 },
-  { module: "Mapa de Calor", accesses: 367, uniqueUsers: 3, avgDuration: "09:30", trend: 18.4 },
-  { module: "Asistente IA", accesses: 234, uniqueUsers: 4, avgDuration: "04:12", trend: 42.3 },
-  { module: "Dashboard Ejecutivo", accesses: 567, uniqueUsers: 7, avgDuration: "10:55", trend: 20.8 },
-  { module: "Integraciones", accesses: 89, uniqueUsers: 2, avgDuration: "18:22", trend: 5.1 },
 ];
 
 /* ─── Mapeo etiqueta ↔ slug institucional (BD) ─── */
@@ -291,6 +285,10 @@ export default function AdminTab() {
     return DEMO_AUDIT_LOGS;
   }, [dbAuditLog, auditEsReal]);
 
+  // BD: actividad real derivada de audit_log (acciones de escritura, no vistas)
+  const { data: activityResp } = trpc.admin.activityStats.useQuery();
+  const actividadEsReal = activityResp?.origen === "real";
+
   const [expandedRole, setExpandedRole] = useState<string | null>(null);
   const [auditFilter, setAuditFilter] = useState<string>("all");
 
@@ -463,7 +461,7 @@ export default function AdminTab() {
         <Shield size={13} style={{ color: "var(--px-brand)" }} />
         <span style={{ fontFamily: "var(--px-display)", fontSize: "var(--px-text-sm)", fontWeight: 700, color: "var(--px-text)" }}>ADMINISTRACIÓN</span>
         {/* Actividad sigue en mock local (sin fuente de datos real, ver CLAUDE.md) — Usuarios/Roles/Auditoría ya son reales */}
-        <OriginBadge real={activeSubTab === "usuarios" ? esReal : activeSubTab === "auditoria" ? auditEsReal : activeSubTab === "roles" ? rolesEsReal : false} />
+        <OriginBadge real={activeSubTab === "usuarios" ? esReal : activeSubTab === "auditoria" ? auditEsReal : activeSubTab === "roles" ? rolesEsReal : activeSubTab === "actividad" ? actividadEsReal : false} />
         <div className="hidden sm:flex items-center gap-3 ml-2">
           <span style={{ fontFamily: "var(--px-mono)", fontSize: "var(--px-text-xs)", color: "var(--px-ok)" }}><span style={{ fontWeight: 700 }}>{stats.activeUsers}</span> activos</span>
           <span style={{ fontFamily: "var(--px-mono)", fontSize: "var(--px-text-xs)", color: "var(--px-text-faint)" }}>{stats.todayActions} acciones hoy</span>
@@ -703,51 +701,66 @@ export default function AdminTab() {
           <div className="space-y-4">
             <TacticalCard className="p-4">
               <div className="flex items-center justify-between mb-4">
-                <span className="px-section-title">ACTIVIDAD POR MODULO</span>
+                <span className="px-section-title">ACCIONES REGISTRADAS POR MODULO</span>
                 <div className="flex items-center gap-2">
                   <Calendar size={12} style={{ color: "var(--px-text-muted)" }} />
-                  <span className="px-eyebrow">ULTIMAS 24 HORAS</span>
+                  <span className="px-eyebrow">ULTIMOS {activityResp?.periodoDias ?? 30} DIAS</span>
                 </div>
               </div>
-              <div className="space-y-2">
-                {MODULE_ACTIVITY.sort((a, b) => b.accesses - a.accesses).map((mod, i) => {
-                  const maxAccesses = Math.max(...MODULE_ACTIVITY.map(m => m.accesses));
-                  const barWidth = (mod.accesses / maxAccesses) * 100;
-                  return (
-                    <div key={i} className="flex items-center" style={{ gap: "var(--px-3)" }}>
-                      <div style={{ width: 160, fontFamily: "var(--px-mono)", fontSize: "var(--px-text-xs)", color: "var(--px-text)", flexShrink: 0 }}>{mod.module}</div>
-                      <div className="flex-1 h-6 rounded overflow-hidden" style={{ background: "var(--px-surface)" }}>
-                        <div className="h-full rounded flex items-center px-2" style={{ width: `${barWidth}%`, background: "linear-gradient(90deg, color-mix(in srgb, var(--px-brand) 30%, transparent), color-mix(in srgb, var(--px-brand) 15%, transparent))", border: "1px solid color-mix(in srgb, var(--px-brand) 20%, transparent)", transition: "width 0.5s ease" }}>
-                          <span style={{ fontFamily: "var(--px-mono)", fontSize: "var(--px-text-xs)", color: "var(--px-brand)", fontWeight: 700 }}>{mod.accesses.toLocaleString()}</span>
+              <p style={{ fontFamily: "var(--px-mono)", fontSize: "var(--px-text-xs)", color: "var(--px-text-muted)", marginBottom: "var(--px-3)" }}>
+                Acciones de escritura registradas en la bitácora de auditoría (crear/editar/eliminar). No mide vistas de página ni duración de sesión — ese dato no existe en el sistema.
+              </p>
+              {(activityResp?.porModulo?.length ?? 0) === 0 ? (
+                <p style={{ fontFamily: "var(--px-mono)", fontSize: "var(--px-text-sm)", color: "var(--px-text-muted)", textAlign: "center", padding: "var(--px-4) 0" }}>
+                  Sin acciones registradas en el periodo.
+                </p>
+              ) : (
+                <div className="space-y-2">
+                  {activityResp!.porModulo.map((mod) => {
+                    const maxAcciones = Math.max(...activityResp!.porModulo.map(m => m.acciones), 1);
+                    const barWidth = (mod.acciones / maxAcciones) * 100;
+                    return (
+                      <div key={mod.module} className="flex items-center" style={{ gap: "var(--px-3)" }}>
+                        <div style={{ width: 160, fontFamily: "var(--px-mono)", fontSize: "var(--px-text-xs)", color: "var(--px-text)", flexShrink: 0 }}>{ACTIVITY_MODULE_LABELS[mod.module] || mod.module}</div>
+                        <div className="flex-1 h-6 rounded overflow-hidden" style={{ background: "var(--px-surface)" }}>
+                          <div className="h-full rounded flex items-center px-2" style={{ width: `${barWidth}%`, background: "linear-gradient(90deg, color-mix(in srgb, var(--px-brand) 30%, transparent), color-mix(in srgb, var(--px-brand) 15%, transparent))", border: "1px solid color-mix(in srgb, var(--px-brand) 20%, transparent)", transition: "width 0.5s ease" }}>
+                            <span style={{ fontFamily: "var(--px-mono)", fontSize: "var(--px-text-xs)", color: "var(--px-brand)", fontWeight: 700 }}>{mod.acciones.toLocaleString()}</span>
+                          </div>
                         </div>
+                        <div style={{ width: 60, textAlign: "right" }}><span style={{ fontFamily: "var(--px-mono)", fontSize: "var(--px-text-xs)", color: "var(--px-text-muted)" }}>{mod.usuariosUnicos} usr</span></div>
+                        <div style={{ width: 60, textAlign: "right" }}><span style={{ fontFamily: "var(--px-mono)", fontSize: "var(--px-text-xs)", color: mod.tendencia > 0 ? "var(--px-ok)" : mod.tendencia < 0 ? "var(--px-crit)" : "var(--px-text-muted)", fontWeight: 600 }}>{mod.tendencia > 0 ? "+" : ""}{mod.tendencia}%</span></div>
                       </div>
-                      <div style={{ width: 60, textAlign: "right" }}><span style={{ fontFamily: "var(--px-mono)", fontSize: "var(--px-text-xs)", color: "var(--px-text-muted)" }}>{mod.uniqueUsers} usr</span></div>
-                      <div style={{ width: 60, textAlign: "right" }}><span style={{ fontFamily: "var(--px-mono)", fontSize: "var(--px-text-xs)", color: "var(--px-text-muted)" }}>{mod.avgDuration}</span></div>
-                      <div style={{ width: 60, textAlign: "right" }}><span style={{ fontFamily: "var(--px-mono)", fontSize: "var(--px-text-xs)", color: mod.trend > 0 ? "var(--px-ok)" : "var(--px-crit)", fontWeight: 600 }}>{mod.trend > 0 ? "+" : ""}{mod.trend}%</span></div>
-                    </div>
-                  );
-                })}
-              </div>
+                    );
+                  })}
+                </div>
+              )}
             </TacticalCard>
 
             <TacticalCard className="p-4">
               <span className="px-section-title" style={{ display: "block", marginBottom: "var(--px-3)" }}>USUARIOS MAS ACTIVOS</span>
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5" style={{ gap: "var(--px-3)" }}>
-                {[...users].sort((a, b) => b.loginCount - a.loginCount).slice(0, 5).map((user, i) => {
-                  const roleData = roles.find(r => r.name === user.role);
-                  return (
-                    <TacticalCard key={user.id} className="p-3 text-center">
-                      <div className="flex items-center justify-center w-10 h-10 rounded-full mx-auto mb-2" style={{ background: `${roleData?.color || "#00D4FF"}15`, border: `1px solid ${roleData?.color || "#00D4FF"}30` }}>
-                        <span style={{ fontWeight: 700, fontSize: "var(--px-text-md)", color: roleData?.color || "var(--px-brand)" }}>#{i + 1}</span>
-                      </div>
-                      <div style={{ fontWeight: 600, fontSize: "var(--px-text-sm)", color: "var(--px-text)" }}>{user.name.split(" ").slice(0, 2).join(" ")}</div>
-                      <div style={{ fontFamily: "var(--px-mono)", fontSize: "var(--px-text-xs)", color: "var(--px-text-muted)" }}>{user.role}</div>
-                      <div style={{ fontFamily: "var(--px-mono)", fontSize: "var(--px-text-md)", fontWeight: 700, color: "var(--px-brand)", marginTop: "var(--px-1)" }}>{user.loginCount}</div>
-                      <div className="px-eyebrow">SESIONES</div>
-                    </TacticalCard>
-                  );
-                })}
-              </div>
+              {(activityResp?.usuariosActivos?.length ?? 0) === 0 ? (
+                <p style={{ fontFamily: "var(--px-mono)", fontSize: "var(--px-text-sm)", color: "var(--px-text-muted)", textAlign: "center", padding: "var(--px-4) 0" }}>
+                  Sin acciones registradas en el periodo.
+                </p>
+              ) : (
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5" style={{ gap: "var(--px-3)" }}>
+                  {activityResp!.usuariosActivos.map((u, i) => {
+                    const color = (u.rol && ROLE_COLORS[u.rol]) || "#00D4FF";
+                    const roleLabel = (u.rol && ROLE_SLUG_TO_LABEL[u.rol]) || u.rol || "—";
+                    return (
+                      <TacticalCard key={u.userId} className="p-3 text-center">
+                        <div className="flex items-center justify-center w-10 h-10 rounded-full mx-auto mb-2" style={{ background: `${color}15`, border: `1px solid ${color}30` }}>
+                          <span style={{ fontWeight: 700, fontSize: "var(--px-text-md)", color }}>#{i + 1}</span>
+                        </div>
+                        <div style={{ fontWeight: 600, fontSize: "var(--px-text-sm)", color: "var(--px-text)" }}>{u.nombre.split(" ").slice(0, 2).join(" ")}</div>
+                        <div style={{ fontFamily: "var(--px-mono)", fontSize: "var(--px-text-xs)", color: "var(--px-text-muted)" }}>{roleLabel}</div>
+                        <div style={{ fontFamily: "var(--px-mono)", fontSize: "var(--px-text-md)", fontWeight: 700, color: "var(--px-brand)", marginTop: "var(--px-1)" }}>{u.acciones}</div>
+                        <div className="px-eyebrow">ACCIONES</div>
+                      </TacticalCard>
+                    );
+                  })}
+                </div>
+              )}
             </TacticalCard>
           </div>
         )}

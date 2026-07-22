@@ -168,3 +168,34 @@ describe("admin.resetRolePermissions", () => {
     await expect(caller.admin.resetRolePermissions({ role: "operador" })).rejects.toThrow(/BD no disponible/);
   });
 });
+
+describe("admin.activityStats", () => {
+  it("rechaza sin sesión", async () => {
+    const caller = appRouter.createCaller(createContext(null));
+    try {
+      await caller.admin.activityStats();
+      throw new Error("esperaba que rechazara");
+    } catch (e) {
+      expect((e as TRPCError).code).toBe("UNAUTHORIZED");
+    }
+  });
+
+  it("rechaza con FORBIDDEN a un rol sin permiso de admin (ej. consulta)", async () => {
+    const caller = appRouter.createCaller(createContext({ ...AUTH_USER, institutionalRole: "consulta" }));
+    try {
+      await caller.admin.activityStats();
+      throw new Error("esperaba que rechazara");
+    } catch (e) {
+      expect((e as TRPCError).code).toBe("FORBIDDEN");
+    }
+  });
+
+  it("responde con origen 'sin_bd' y listas vacías en modo degradado (rol admin)", async () => {
+    const caller = appRouter.createCaller(createContext(AUTH_USER));
+    const result = await caller.admin.activityStats();
+    expect(result.origen).toBe("sin_bd");
+    expect(result.porModulo).toEqual([]);
+    expect(result.usuariosActivos).toEqual([]);
+    expect(result.periodoDias).toBe(30);
+  });
+});

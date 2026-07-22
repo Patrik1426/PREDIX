@@ -2,9 +2,9 @@ import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { requirePermission, router } from "../_core/infra/trpc";
 import { getDb } from "../config/db";
-import { auditLog } from "../../drizzle/schema";
+import { auditLog, users } from "../../drizzle/schema";
 import { MODULES } from "../_core/infra/permissions";
-import { desc } from "drizzle-orm";
+import { desc, and, gte, lt, sql, inArray } from "drizzle-orm";
 import { logger } from "../_core/logger";
 import { listAllRolePermissions, updateRolePermission, resetRolePermissions, getPermissionsOrigin, ROLE_NAMES, MODULE_NAMES } from "../services/permissionsCache";
 import { logAudit } from "../config/auditLog";
@@ -88,4 +88,82 @@ export const adminRouter = router({
       });
       return { success: true };
     }),
+
+  /**
+   * Actividad real por módulo y usuarios más activos — derivado de audit_log
+   * (acciones de escritura ya registradas: alertas/incidentes/usuarios/vault/
+   * chatbot/administración). No mide "vistas" de página ni duración de sesión
+   * — esos datos no existen en ningún lado del sistema; solo acciones que
+   * generan una mutación real. Ventana de 30 días, con tendencia contra los
+   * 30 días previos.
+   */
+  activityStats: requirePermission(MODULES.ADMIN, "canView").query(async () => {
+    const db = await getDb();
+    if (!db) return { porModulo: [], usuariosActivos: [], origen: "sin_bd" as const, periodoDias: 30 };
+
+    try {
+      const ahora = new Date();
+      const inicioActual = new Date(ahora.getTime() - 30 * 24 * 60 * 60 * 1000);
+      const inicioAnterior = new Date(ahora.getTime() - 60 * 24 * 60 * 60 * 1000);
+
+      const actualPorModulo = await db
+        .select({
+          module: auditLog.module,
+          acciones: sql<number>`count(*)`.mapWith(Number),
+          usuarios: sql<number>`count(distinct ${auditLog.userId})`.mapWith(Number),
+        })
+        .from(auditLog)
+        .where(gte(auditLog.timestamp, inicioActual))
+        .groupBy(auditLog.module);
+
+      const anteriorPorModulo = await db
+        .select({
+          module: auditLog.module,
+          acciones: sql<number>`count(*)`.mapWith(Number),
+        })
+        .from(auditLog)
+        .where(and(gte(auditLog.timestamp, inicioAnterior), lt(auditLog.timestamp, inicioActual)))
+        .groupBy(auditLog.module);
+
+      const anteriorMap = new Map(anteriorPorModulo.map(r => [r.module, r.acciones]));
+
+      const porModulo = actualPorModulo
+        .map(r => {
+          const previo = anteriorMap.get(r.module) ?? 0;
+          const tendencia = previo === 0 ? (r.acciones > 0 ? 100 : 0) : Math.round(((r.acciones - previo) / previo) * 1000) / 10;
+          return { module: r.module, acciones: r.acciones, usuariosUnicos: r.usuarios, tendencia };
+        })
+        .sort((a, b) => b.acciones - a.acciones);
+
+      const topUsuariosRaw = await db
+        .select({
+          userId: auditLog.userId,
+          acciones: sql<number>`count(*)`.mapWith(Number),
+        })
+        .from(auditLog)
+        .where(gte(auditLog.timestamp, inicioActual))
+        .groupBy(auditLog.userId)
+        .orderBy(sql`count(*) desc`)
+        .limit(5);
+
+      const userIds = topUsuariosRaw.map(u => u.userId);
+      const userRows = userIds.length ? await db.select().from(users).where(inArray(users.id, userIds)) : [];
+      const userMap = new Map(userRows.map(u => [u.id, u]));
+
+      const usuariosActivos = topUsuariosRaw.map(u => {
+        const info = userMap.get(u.userId);
+        return {
+          userId: u.userId,
+          nombre: info?.name || `Usuario #${u.userId}`,
+          rol: info?.institutionalRole ?? null,
+          acciones: u.acciones,
+        };
+      });
+
+      return { porModulo, usuariosActivos, origen: "real" as const, periodoDias: 30 };
+    } catch (e) {
+      logger.error("[Admin] Error calculando actividad:", e);
+      return { porModulo: [], usuariosActivos: [], origen: "error" as const, periodoDias: 30 };
+    }
+  }),
 });

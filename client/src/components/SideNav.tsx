@@ -5,10 +5,33 @@
 // flotantes al colapsar. Drawer en móvil. Cian = solo acento.
 // ============================================================
 
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Shield, PanelLeftClose, PanelLeftOpen, Menu, X } from "lucide-react";
 import { type TabId, type NavItem, type NavGroup, groupsForRole } from "./navConfig";
 import { useDemoSession } from "@/contexts/DemoSessionContext";
+import { trpc } from "@/lib/trpc";
+
+/** Alertas no resueltas / incidentes abiertos — mismas fuentes reales que sus tabs. */
+function useNavBadges(): { alertas: number; incidentes: number } {
+  const { data: alertasResp } = trpc.alertas.listar.useQuery();
+  const { data: incidentesResp } = trpc.incidentes.listar.useQuery({});
+  const alertas = (alertasResp?.data ?? []).filter((a) => !a.resuelta).length;
+  const incidentes = (incidentesResp?.data ?? []).filter((i) => i.estado !== "cerrado").length;
+  return { alertas, incidentes };
+}
+
+// Inyecta los badges reales sobre los items de navegación (navConfig.tsx solo
+// tiene la estructura estática) — sin badge (undefined) cuando el conteo es 0.
+function withRealBadges(groups: NavGroup[], badges: { alertas: number; incidentes: number }): NavGroup[] {
+  return groups.map((g) => ({
+    ...g,
+    items: g.items.map((item) => {
+      if (item.id === "alertas") return { ...item, badge: badges.alertas || undefined, badgeColor: "var(--px-warn)" };
+      if (item.id === "incidentes") return { ...item, badge: badges.incidentes || undefined, badgeColor: "var(--px-warn)" };
+      return item;
+    }),
+  }));
+}
 
 // Contenedor scrollable con barra invisible + fades de borde (arriba/abajo)
 // que aparecen solo cuando hay contenido oculto en esa dirección.
@@ -191,7 +214,11 @@ function SyncStatus() {
 export default function SideNav({ activeTab, onTabChange, collapsed, onCollapsedChange, canToggle = true }: SideNavProps) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const { role } = useDemoSession();
-  const groups = groupsForRole(role); // Analista no ve el grupo "Sistema".
+  const badges = useNavBadges();
+  const groups = useMemo(
+    () => withRealBadges(groupsForRole(role), badges), // Analista no ve el grupo "Sistema".
+    [role, badges.alertas, badges.incidentes]
+  );
 
   // Cierra la hoja "Más" al cambiar de módulo.
   useEffect(() => {

@@ -33,16 +33,17 @@ export interface NavGroup {
   roles?: NavRole[];
 }
 
-// Badges mock (6 alertas / 47 incidentes). TODO: cablear a conteos reales
-// (alertas activas / incidentes del día) cuando exista el endpoint.
+// Los badges de "Alertas"/"Incidentes" NO viven aquí — se calculan en tiempo
+// real en SideNav (useNavBadges, alertas no resueltas / incidentes abiertos)
+// y se inyectan sobre estos items al renderizar.
 export const NAV_GROUPS: NavGroup[] = [
   {
     label: "Operación",
     items: [
       { id: "tablero", label: "Tablero", icon: <LayoutDashboard size={18} /> },
       { id: "mapa", label: "Mapa Geoespacial", icon: <Map size={18} /> },
-      { id: "alertas", label: "Alertas", icon: <Bell size={18} />, badge: 6, badgeColor: "var(--px-warn)" },
-      { id: "incidentes", label: "Incidentes", icon: <AlertTriangle size={18} />, badge: 47, badgeColor: "var(--px-warn)" },
+      { id: "alertas", label: "Alertas", icon: <Bell size={18} /> },
+      { id: "incidentes", label: "Incidentes", icon: <AlertTriangle size={18} /> },
     ],
   },
   {

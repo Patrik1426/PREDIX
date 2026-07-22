@@ -5,12 +5,21 @@
 // ============================================================
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { Shield, ChevronDown, Activity, Radio, TrendingUp, TrendingDown } from "lucide-react";
+import { Shield, ChevronDown, Activity, Radio } from "lucide-react";
 import { useLocation } from "wouter";
 import UserPanel, { type UserProfile } from "./UserPanel";
 import NotificationPanel from "./NotificationPanel";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { useDemoSession, DEMO_ROLE_LABELS } from "@/contexts/DemoSessionContext";
+import { trpc } from "@/lib/trpc";
+
+// Etiquetas de los 7 roles institucionales reales (users.institutionalRole),
+// mismo mapeo que AdminTab.tsx (ROLE_SLUG_TO_LABEL) — para mostrar el rol
+// real del usuario autenticado, no el enum genérico users.role ("user"/"admin").
+const INSTITUTIONAL_ROLE_LABELS: Record<string, string> = {
+  admin: "Administrador", supervisor: "Supervisor", analista: "Analista",
+  operador: "Operador", consulta: "Consulta", policia: "Policía", comandante: "Comandante",
+};
 
 // Tokens sobrio-institucional (alineados al NotificationPanel).
 // Cian = solo acento de marca puntual; el color lo carga la severidad/estado.
@@ -43,54 +52,23 @@ function chip(bg: string, border: string): React.CSSProperties {
   };
 }
 
-// Indicador de tendencia vs periodo previo. goodUp = subir es positivo.
-function Delta({ value, goodUp }: { value: number; goodUp: boolean }) {
-  if (value === 0) {
-    return <span style={{ fontFamily: HX.mono, fontSize: "0.62rem", fontWeight: 700, color: HX.textMeta }}>=</span>;
-  }
-  const up = value > 0;
-  const good = up === goodUp;
-  const Icon = up ? TrendingUp : TrendingDown;
-  return (
-    <span
-      style={{
-        display: "inline-flex",
-        alignItems: "center",
-        gap: "2px",
-        fontFamily: HX.mono,
-        fontSize: "0.62rem",
-        fontWeight: 700,
-        color: good ? HX.live : HX.crit,
-        whiteSpace: "nowrap",
-      }}
-    >
-      <Icon size={10} strokeWidth={2.5} />
-      {Math.abs(value)}
-    </span>
-  );
-}
-
 export default function Header() {
   const [currentTime, setCurrentTime] = useState(new Date());
   const [systemStatus] = useState("OPERATIVO");
   const [showUserPanel, setShowUserPanel] = useState(false);
 
-  // KPIs operativos (mock de demo). El color de alertas es reactivo: rojo si
-  // cruza umbral crítico, ámbar si hay activas. Wirear a datos reales aquí.
-  const activeAlerts = 6;
-  const activeUnits = 284;
-  const alertDelta = 2;    // mock: vs hora previa (subir = malo)
-  const unitsDelta = 6;    // mock: vs hora previa (subir = bueno)
+  // Alertas activas reales: cuenta las no resueltas de alertas.listar (misma
+  // fuente que AlertasTab, react-query dedupea la query si ya está en caché).
+  const { data: alertasResp } = trpc.alertas.listar.useQuery();
+  const activeAlerts = (alertasResp?.data ?? []).filter(a => !a.resuelta).length;
   const alertCrit = activeAlerts >= 10;
   const alertColor = alertCrit ? HX.crit : activeAlerts > 0 ? HX.warn : HX.textMeta;
   const alertChipBg = alertCrit ? "rgba(229,72,77,0.12)" : "rgba(229,162,61,0.12)";
   const alertChipBorder = alertCrit ? "rgba(229,72,77,0.28)" : "rgba(229,162,61,0.28)";
 
-  // Flash al cambiar un KPI (WAAPI, mismo patrón del bell). Listo para datos reales.
+  // Flash al cambiar el KPI de alertas (WAAPI, mismo patrón del bell).
   const alertNumRef = useRef<HTMLSpanElement>(null);
-  const unitsNumRef = useRef<HTMLSpanElement>(null);
   const prevAlerts = useRef(activeAlerts);
-  const prevUnits = useRef(activeUnits);
   useEffect(() => {
     const reduce = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
     const flash = (el: HTMLElement | null) => {
@@ -101,8 +79,7 @@ export default function Header() {
       );
     };
     if (activeAlerts !== prevAlerts.current) { flash(alertNumRef.current); prevAlerts.current = activeAlerts; }
-    if (activeUnits !== prevUnits.current) { flash(unitsNumRef.current); prevUnits.current = activeUnits; }
-  }, [activeAlerts, activeUnits]);
+  }, [activeAlerts]);
 
   // ── Auth hook for real logout ──
   const { user: authUser, isAuthenticated, logout } = useAuth();
@@ -112,39 +89,31 @@ export default function Header() {
   // Etiqueta de rol a mostrar: el rol de la demo manda en la UI.
   const demoRoleLabel = demoRole ? DEMO_ROLE_LABELS[demoRole] : null;
 
-  // Build user profile from auth data or fallback to demo data
+  // Build user profile from real session data (auth.me) or fallback demo profile
+  // cuando no hay sesión real (solo posible antes del login, no debería verse).
   const user: UserProfile = authUser
     ? {
         nombre: authUser.name || "Usuario PREDIX",
-        rol: (authUser as any).role || "operador",
+        rol: INSTITUTIONAL_ROLE_LABELS[authUser.institutionalRole] || authUser.institutionalRole,
         correo: authUser.email || "usuario@seguridad.edomex.gob.mx",
-        unidad: "Centro de Mando Estatal",
-        ultimaConexion: new Date().toLocaleString("es-MX", {
-          day: "2-digit",
-          month: "short",
-          year: "numeric",
-          hour: "2-digit",
-          minute: "2-digit",
-        }),
-        estado: "activo",
-        cargo: "Operador de Monitoreo",
-        accesos: ["mapa", "alertas", "incidentes", "tablero", "calor", "chatbot"],
+        unidad: authUser.department || authUser.institution || "Sin asignar",
+        ultimaConexion: authUser.lastSignedIn
+          ? new Date(authUser.lastSignedIn).toLocaleString("es-MX", {
+              day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit",
+            })
+          : "—",
+        estado: authUser.status === "active" ? "activo" : "inactivo",
+        cargo: INSTITUTIONAL_ROLE_LABELS[authUser.institutionalRole] || authUser.institutionalRole,
+        employeeId: authUser.employeeId || undefined,
       }
     : {
-        nombre: "Carlos Mendoza",
-        rol: "operador",
-        correo: "cmendoza@seguridad.edomex.gob.mx",
-        unidad: "Centro de Mando Estatal",
-        ultimaConexion: new Date().toLocaleString("es-MX", {
-          day: "2-digit",
-          month: "short",
-          year: "numeric",
-          hour: "2-digit",
-          minute: "2-digit",
-        }),
-        estado: "activo",
-        cargo: "Operador de Monitoreo",
-        accesos: ["mapa", "alertas", "incidentes", "tablero", "calor", "chatbot"],
+        nombre: "Usuario PREDIX",
+        rol: "Operador",
+        correo: "—",
+        unidad: "—",
+        ultimaConexion: "—",
+        estado: "inactivo",
+        cargo: "—",
       };
 
   useEffect(() => {
@@ -309,33 +278,9 @@ export default function Header() {
                 <span ref={alertNumRef} style={{ display: "inline-block", fontFamily: HX.display, fontSize: "1.05rem", fontWeight: 700, color: alertColor, fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>
                   {activeAlerts}
                 </span>
-                <Delta value={alertDelta} goodUp={false} />
               </div>
               <div className="hidden lg:block" style={{ fontFamily: HX.mono, fontSize: "0.62rem", color: HX.textMeta, letterSpacing: "0.1em", marginTop: "3px" }}>
                 ALERTAS ACTIVAS
-              </div>
-            </div>
-          </div>
-
-          <div className="hidden sm:block" style={{ width: "1px", height: "26px", background: HX.borderSoft, flexShrink: 0 }} />
-
-          {/* Unidades en línea (KPI + tendencia) */}
-          <div className="hidden sm:flex items-center gap-2.5" style={{ flexShrink: 0 }}>
-            <span style={chip("rgba(255,255,255,0.06)", HX.borderSoft)}>
-              <Shield size={15} style={{ color: HX.textBody }} />
-            </span>
-            <div className="leading-none">
-              <div className="flex items-baseline gap-1.5">
-                <span ref={unitsNumRef} style={{ display: "inline-block", fontFamily: HX.display, fontSize: "1.05rem", fontWeight: 700, color: HX.textTitle, fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>
-                  {activeUnits}
-                </span>
-                <Delta value={unitsDelta} goodUp={true} />
-              </div>
-              <div className="hidden lg:flex items-center gap-1" style={{ marginTop: "3px" }}>
-                <span style={{ width: "4px", height: "4px", borderRadius: "50%", background: HX.live }} />
-                <span style={{ fontFamily: HX.mono, fontSize: "0.62rem", color: HX.textMeta, letterSpacing: "0.1em" }}>
-                  UNIDADES EN LÍNEA
-                </span>
               </div>
             </div>
           </div>

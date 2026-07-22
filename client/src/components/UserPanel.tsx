@@ -62,7 +62,7 @@ export interface UserProfile {
   estado: "activo" | "inactivo";
   area?: string;
   cargo?: string;
-  accesos?: string[];
+  employeeId?: string;
 }
 
 interface UserPanelProps {
@@ -102,7 +102,7 @@ export default function UserPanel({ user, onClose, onLogout }: UserPanelProps) {
   };
 
   const roleLabel = role ? DEMO_ROLE_LABELS[role] : user.rol;
-  const employeeId = "—";
+  const employeeId = user.employeeId || "—";
   const email = user.correo;
 
   // Niveles de acceso = grupos de navegación visibles para el rol.

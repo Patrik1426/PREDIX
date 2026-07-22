@@ -9,6 +9,39 @@ import SideNav from "./SideNav";
 import { NAV_GROUPS, TAB_IDS } from "./navConfig";
 import { DemoSessionProvider } from "@/contexts/DemoSessionContext";
 
+// Badges reales (useNavBadges) vienen de trpc.alertas.listar/incidentes.listar —
+// se mockean con datos fijos: 3 alertas activas (2 resueltas de 5), 2 incidentes
+// abiertos (1 cerrado de 3), para probar que el badge refleja el conteo real.
+vi.mock("@/lib/trpc", () => ({
+  trpc: {
+    alertas: {
+      listar: {
+        useQuery: () => ({
+          data: {
+            origen: "real",
+            data: [
+              { id: 1, resuelta: 0 }, { id: 2, resuelta: 0 }, { id: 3, resuelta: 0 },
+              { id: 4, resuelta: 1 }, { id: 5, resuelta: 1 },
+            ],
+          },
+        }),
+      },
+    },
+    incidentes: {
+      listar: {
+        useQuery: () => ({
+          data: {
+            origen: "real",
+            data: [
+              { id: 1, estado: "en_proceso" }, { id: 2, estado: "investigacion" }, { id: 3, estado: "cerrado" },
+            ],
+          },
+        }),
+      },
+    },
+  },
+}));
+
 // Sin sesión demo (role = null) el rail muestra TODOS los grupos.
 function setup(overrides: Partial<React.ComponentProps<typeof SideNav>> = {}) {
   const onTabChange = vi.fn();
@@ -46,10 +79,10 @@ describe("SideNav", () => {
     }
   });
 
-  it("muestra los badges de Alertas (6) e Incidentes (47)", () => {
+  it("muestra los badges reales: 3 alertas activas y 2 incidentes abiertos", () => {
     setup();
-    expect(screen.getAllByText("6").length).toBeGreaterThanOrEqual(1);
-    expect(screen.getAllByText("47").length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText("3").length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText("2").length).toBeGreaterThanOrEqual(1);
   });
 
   it("llama onTabChange con el id correcto al hacer click en un módulo", () => {

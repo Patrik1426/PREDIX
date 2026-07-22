@@ -6,7 +6,7 @@
 import { z } from "zod";
 import { publicProcedure, protectedProcedure, router } from "../_core/infra/trpc";
 import { getDb } from "../config/db";
-import { users, rolePermissions } from "../../drizzle/schema";
+import { users } from "../../drizzle/schema";
 import { eq, and } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { COOKIE_NAME } from "../../shared/const";
@@ -21,6 +21,7 @@ import { sdk } from "../_core/sdk";
 const DUMMY_HASH = hashPassword("dummy-password-para-timing-constante");
 
 import { MODULES, DEFAULT_PERMISSIONS } from "../_core/infra/permissions";
+import { getRolePermissions } from "../services/permissionsCache";
 export { MODULES, DEFAULT_PERMISSIONS };
 
 export const authRouter = router({
@@ -108,19 +109,8 @@ export const authRouter = router({
       }
 
       const userRole = user[0].institutionalRole;
-      const permissions = DEFAULT_PERMISSIONS[userRole as keyof typeof DEFAULT_PERMISSIONS];
-
-      if (!permissions) {
-        return {
-          canView: 0,
-          canEdit: 0,
-          canDelete: 0,
-          canExport: 0,
-        };
-      }
-
-      const modulePerms = permissions[input.module as keyof typeof permissions];
-      return modulePerms || { canView: 0, canEdit: 0, canDelete: 0, canExport: 0 };
+      const permissions = await getRolePermissions(userRole);
+      return permissions[input.module] || { canView: 0, canEdit: 0, canDelete: 0, canExport: 0 };
     }),
 
   // Check if user can access module
@@ -146,14 +136,8 @@ export const authRouter = router({
       }
 
       const userRole = user[0].institutionalRole;
-      const permissions = DEFAULT_PERMISSIONS[userRole as keyof typeof DEFAULT_PERMISSIONS];
-
-      if (!permissions) {
-        return false;
-      }
-
-      const modulePerms = permissions[input.module as keyof typeof permissions];
-      return modulePerms?.canView === 1;
+      const permissions = await getRolePermissions(userRole);
+      return permissions[input.module]?.canView === 1;
     }),
 
   // Get all modules accessible by user
@@ -177,11 +161,7 @@ export const authRouter = router({
     }
 
     const userRole = user[0].institutionalRole;
-    const permissions = DEFAULT_PERMISSIONS[userRole as keyof typeof DEFAULT_PERMISSIONS];
-
-    if (!permissions) {
-      return [];
-    }
+    const permissions = await getRolePermissions(userRole);
 
     return Object.entries(permissions)
       .filter(([, perms]) => perms.canView === 1)
@@ -213,7 +193,7 @@ export const authRouter = router({
 
     const userData = user[0];
     const userRole = userData.institutionalRole;
-    const permissions = DEFAULT_PERMISSIONS[userRole as keyof typeof DEFAULT_PERMISSIONS];
+    const permissions = await getRolePermissions(userRole);
 
     return {
       id: userData.id,

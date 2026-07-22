@@ -11,7 +11,7 @@ import {
   CheckCircle, XCircle, AlertTriangle, Clock, ChevronDown,
   ChevronRight, BarChart3, Calendar, Download, RefreshCw,
   UserCheck, UserX, ShieldCheck, ShieldAlert, KeyRound,
-  Copy, MapPin, Radio, Navigation, X, Save, Plus
+  MapPin, Radio, Navigation, X, Save, Plus
 } from "lucide-react";
 import { toast } from "sonner";
 import { ModuleHeader, OriginBadge } from "@/components/dashboard";
@@ -39,15 +39,6 @@ interface User {
   };
 }
 
-interface Role {
-  id: number;
-  name: string;
-  description: string;
-  level: string;
-  userCount: number;
-  permissions: Record<string, { read: boolean; write: boolean }>;
-  color: string;
-}
 
 interface AuditLog {
   id: number;
@@ -93,15 +84,15 @@ const INITIAL_USERS: User[] = [
   { id: 14, name: "Cmdte. Alejandro Ruiz Ortiz", email: "a.ruiz@edomex.gob.mx", role: "Comandante", department: "Zona Oriente", status: "active", lastLogin: "17/04/2026 19:30", loginCount: 189, createdAt: "2025-03-15", modules: ["Mapa Geoespacial", "Alertas", "Incidentes", "Tablero"], identification: { type: "grupo_operativo", value: "GRUPO DELTA-3", lat: 19.3560, lng: -98.9820, lastUpdate: "17/04/2026 20:15" } },
 ];
 
-const INITIAL_ROLES: Role[] = [
-  { id: 1, name: "Administrador", description: "Acceso total al sistema. Gestión de usuarios, configuración y todos los módulos.", level: "admin", userCount: 1, permissions: Object.fromEntries(ALL_MODULES.map(m => [m, { read: true, write: true }])), color: "#FF3B3B" },
-  { id: 2, name: "Supervisor", description: "Supervisión operativa. Acceso a módulos tácticos y gestión de operadores.", level: "supervisor", userCount: 2, permissions: { "Mapa Geoespacial": { read: true, write: true }, "Alertas": { read: true, write: true }, "Incidentes": { read: true, write: true }, "Tablero": { read: true, write: false }, "Chatbot IA": { read: true, write: false }, "Dashboard": { read: true, write: false }, "Predicciones": { read: false, write: false }, "Mapa de Calor": { read: false, write: false }, "Integraciones": { read: false, write: false }, "Administración": { read: false, write: false }, "Reportes": { read: true, write: false }, "Exportación": { read: true, write: false } }, color: "#FFB800" },
-  { id: 3, name: "Analista", description: "Análisis de datos e inteligencia. Acceso a predicciones y estadísticas.", level: "analista", userCount: 3, permissions: { "Mapa Geoespacial": { read: true, write: false }, "Alertas": { read: true, write: false }, "Incidentes": { read: true, write: false }, "Predicciones": { read: true, write: true }, "Tablero": { read: true, write: false }, "Mapa de Calor": { read: true, write: true }, "Chatbot IA": { read: false, write: false }, "Dashboard": { read: true, write: false }, "Integraciones": { read: false, write: false }, "Administración": { read: false, write: false }, "Reportes": { read: true, write: true }, "Exportación": { read: true, write: false } }, color: "#00D4FF" },
-  { id: 4, name: "Operador", description: "Operación en tiempo real. Monitoreo de mapa, alertas e incidentes.", level: "operador", userCount: 2, permissions: { "Mapa Geoespacial": { read: true, write: false }, "Alertas": { read: true, write: true }, "Incidentes": { read: true, write: true }, "Predicciones": { read: false, write: false }, "Tablero": { read: true, write: false }, "Mapa de Calor": { read: false, write: false }, "Chatbot IA": { read: false, write: false }, "Dashboard": { read: false, write: false }, "Integraciones": { read: true, write: false }, "Administración": { read: false, write: false }, "Reportes": { read: false, write: false }, "Exportación": { read: false, write: false } }, color: "#00FF88" },
-  { id: 5, name: "Consulta", description: "Solo lectura. Acceso limitado a tableros y dashboards.", level: "consulta", userCount: 2, permissions: { "Mapa Geoespacial": { read: false, write: false }, "Alertas": { read: false, write: false }, "Incidentes": { read: false, write: false }, "Predicciones": { read: false, write: false }, "Tablero": { read: true, write: false }, "Mapa de Calor": { read: false, write: false }, "Chatbot IA": { read: false, write: false }, "Dashboard": { read: true, write: false }, "Integraciones": { read: false, write: false }, "Administración": { read: false, write: false }, "Reportes": { read: false, write: false }, "Exportación": { read: false, write: false } }, color: "var(--px-text-muted)" },
-  { id: 6, name: "Policía", description: "Elemento policial en campo. Acceso a mapa y alertas. Georeferenciado por GPS/patrulla.", level: "policia", userCount: 3, permissions: { "Mapa Geoespacial": { read: true, write: false }, "Alertas": { read: true, write: true }, "Incidentes": { read: true, write: true }, "Predicciones": { read: false, write: false }, "Tablero": { read: false, write: false }, "Mapa de Calor": { read: false, write: false }, "Chatbot IA": { read: false, write: false }, "Dashboard": { read: false, write: false }, "Integraciones": { read: false, write: false }, "Administración": { read: false, write: false }, "Reportes": { read: false, write: false }, "Exportación": { read: false, write: false } }, color: "#4FC3F7" },
-  { id: 7, name: "Comandante", description: "Comandante de zona/sector. Supervisión de elementos y operaciones tácticas.", level: "comandante", userCount: 2, permissions: { "Mapa Geoespacial": { read: true, write: true }, "Alertas": { read: true, write: true }, "Incidentes": { read: true, write: true }, "Predicciones": { read: true, write: false }, "Tablero": { read: true, write: false }, "Mapa de Calor": { read: true, write: false }, "Chatbot IA": { read: true, write: false }, "Dashboard": { read: true, write: false }, "Integraciones": { read: false, write: false }, "Administración": { read: false, write: false }, "Reportes": { read: true, write: false }, "Exportación": { read: true, write: false } }, color: "#AB47BC" },
-];
+const ROLE_DESCRIPTIONS: Record<string, string> = {
+  admin: "Acceso total al sistema. Gestión de usuarios, configuración y todos los módulos.",
+  supervisor: "Supervisión operativa. Acceso a módulos tácticos y gestión de operadores.",
+  analista: "Análisis de datos e inteligencia. Acceso a predicciones y estadísticas.",
+  operador: "Operación en tiempo real. Monitoreo de mapa, alertas e incidentes.",
+  consulta: "Solo lectura. Acceso limitado a tableros y dashboards.",
+  policia: "Elemento policial en campo. Acceso a mapa y alertas. Georeferenciado por GPS/patrulla.",
+  comandante: "Comandante de zona/sector. Supervisión de elementos y operaciones tácticas.",
+};
 
 const DEMO_AUDIT_LOGS: AuditLog[] = [
   { id: 1, timestamp: "17/04/2026 20:15:32", user: "Cmdte. Roberto Hernández", action: "LOGIN", module: "Sistema", detail: "Inicio de sesión exitoso", ip: "10.0.1.45", status: "success" },
@@ -138,6 +129,35 @@ const ROLE_LABEL_TO_SLUG: Record<string, string> = {
 const ROLE_SLUG_TO_LABEL: Record<string, string> = Object.fromEntries(
   Object.entries(ROLE_LABEL_TO_SLUG).map(([label, slug]) => [slug, label])
 );
+const ROLE_COLORS: Record<string, string> = {
+  admin: "#FF3B3B", supervisor: "#FFB800", analista: "#00D4FF", operador: "#00FF88",
+  consulta: "var(--px-text-muted)", policia: "#4FC3F7", comandante: "#AB47BC",
+};
+
+/**
+ * Los 8 módulos reales sobre los que se hace cumplir RBAC server-side
+ * (server/_core/infra/permissions.ts, MODULES) — no los 12 "módulos" que
+ * mostraba el mock anterior (varios no correspondían a ningún módulo real).
+ */
+const MODULE_LABELS: Record<string, string> = {
+  mapa_geoespacial: "Mapa Geoespacial",
+  alertas: "Alertas",
+  incidentes: "Incidentes",
+  predicciones: "Modelo Predictivo",
+  tablero: "Tablero",
+  zonas_delictivas: "Zonas Delictivas",
+  chatbot: "Asistente IA",
+  admin: "Administración",
+};
+
+interface RolePerms { canView: boolean; canEdit: boolean; canDelete: boolean; canExport: boolean; }
+interface RoleDisplay {
+  slug: string;
+  name: string;
+  color: string;
+  userCount: number;
+  permissions: Record<string, RolePerms>;
+}
 
 /* ─── Sub-tabs ─── */
 type SubTab = "usuarios" | "roles" | "auditoria" | "actividad";
@@ -234,13 +254,32 @@ export default function AdminTab() {
   const eliminarUsuarioMut = trpc.usuarios.eliminar.useMutation({ onError: onUsuarioMutError });
   const resetPasswordMut = trpc.usuarios.resetPassword.useMutation({ onSuccess: () => refetchUsers() });
 
-  const [rolesBase, setRoles] = useState<Role[]>(INITIAL_ROLES);
+  // BD: matriz de permisos por rol real (role_permissions, con fallback a
+  // DEFAULT_PERMISSIONS si la tabla no está sembrada) — la misma fuente que
+  // consulta requirePermission en el servidor en cada request protegido.
+  const { data: rolePermsResp, refetch: refetchRolePerms } = trpc.admin.listRolePermissions.useQuery();
+  const rolesEsReal = rolePermsResp?.origen === "real";
   // userCount se deriva de `users` (fuente real cuando hay sesión) en vez de mantenerse
   // a mano en el estado — evita que el contador se desincronice tras un reload.
-  const roles = useMemo(
-    () => rolesBase.map(r => ({ ...r, userCount: users.filter(u => u.role === r.name).length })),
-    [rolesBase, users]
-  );
+  const roles: RoleDisplay[] = useMemo(() => {
+    const slugs = rolePermsResp?.roles ?? Object.keys(ROLE_SLUG_TO_LABEL);
+    return slugs.map(slug => ({
+      slug,
+      name: ROLE_SLUG_TO_LABEL[slug] || slug,
+      color: ROLE_COLORS[slug] || "var(--px-text-muted)",
+      userCount: users.filter(u => u.role === (ROLE_SLUG_TO_LABEL[slug] || slug)).length,
+      permissions: Object.fromEntries(
+        Object.entries(rolePermsResp?.matrix?.[slug] ?? {}).map(([mod, p]) => [mod, { canView: !!p.canView, canEdit: !!p.canEdit, canDelete: !!p.canDelete, canExport: !!p.canExport }])
+      ),
+    }));
+  }, [rolePermsResp, users]);
+
+  const onRolePermError = (e: unknown) => {
+    const code = e instanceof TRPCClientError ? e.data?.code : undefined;
+    toast.error(code === "UNAUTHORIZED" ? "Requiere sesión iniciada" : code === "FORBIDDEN" ? "Tu rol no tiene permiso para esta acción" : "No se pudo completar la acción");
+  };
+  const updateRolePermMut = trpc.admin.updateRolePermission.useMutation({ onError: onRolePermError });
+  const resetRolePermsMut = trpc.admin.resetRolePermissions.useMutation({ onError: onRolePermError });
 
   // BD: bitácora de auditoría real con fallback a datos demo
   const { data: dbAuditLog } = trpc.admin.auditLog.useQuery();
@@ -261,7 +300,7 @@ export default function AdminTab() {
     return DEMO_AUDIT_LOGS;
   }, [dbAuditLog, auditEsReal]);
 
-  const [expandedRole, setExpandedRole] = useState<number | null>(null);
+  const [expandedRole, setExpandedRole] = useState<string | null>(null);
   const [auditFilter, setAuditFilter] = useState<string>("all");
 
   // Dialog states
@@ -270,7 +309,7 @@ export default function AdminTab() {
   const [showEditPermissionsDialog, setShowEditPermissionsDialog] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
-  const [editingRole, setEditingRole] = useState<Role | null>(null);
+  const [editingRole, setEditingRole] = useState<RoleDisplay | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<User | null>(null);
   const [resetPasswordValue, setResetPasswordValue] = useState("");
 
@@ -392,26 +431,32 @@ export default function AdminTab() {
     setResetPasswordValue("");
   };
 
-  /* ─── Duplicate Role ─── */
-  const handleDuplicateRole = (role: Role) => {
-    const newRole: Role = {
-      ...role,
-      id: roles.length + 1,
-      name: `${role.name} (Copia)`,
-      userCount: 0,
-      permissions: { ...role.permissions },
-    };
-    setRoles(prev => [...prev, newRole]);
-    addAuditLog();
-    toast.success(`Rol "${role.name}" duplicado como "${newRole.name}"`);
+  /* ─── Reset Role Permissions (los roles son un enum fijo del sistema —
+     no se puede "duplicar" uno nuevo arbitrario, pero sí restablecerlo a
+     los valores por defecto) ─── */
+  const handleResetRolePermissions = (role: RoleDisplay) => {
+    if (!window.confirm(`¿Restablecer los permisos de "${role.name}" a los valores por defecto del sistema?`)) return;
+    resetRolePermsMut.mutate({ role: role.slug }, {
+      onSuccess: () => {
+        refetchRolePerms();
+        addAuditLog();
+        toast.success(`Permisos de "${role.name}" restablecidos`);
+      },
+    });
   };
 
   /* ─── Save Permissions ─── */
   const handleSavePermissions = () => {
     if (!editingRole) return;
-    setRoles(prev => prev.map(r => r.id === editingRole.id ? editingRole : r));
-    addAuditLog();
-    toast.success(`Permisos del rol "${editingRole.name}" actualizados`);
+    const modules = Object.keys(MODULE_LABELS);
+    Promise.all(modules.map(mod => {
+      const perm = editingRole.permissions[mod] || { canView: false, canEdit: false, canDelete: false, canExport: false };
+      return updateRolePermMut.mutateAsync({ role: editingRole.slug, module: mod, ...perm });
+    })).then(() => {
+      refetchRolePerms();
+      addAuditLog();
+      toast.success(`Permisos del rol "${editingRole.name}" actualizados`);
+    }).catch(onRolePermError);
     setShowEditPermissionsDialog(false);
     setEditingRole(null);
   };
@@ -435,8 +480,8 @@ export default function AdminTab() {
       <div className="px-card flex items-center gap-2 flex-wrap" style={{ padding: "var(--px-2) var(--px-4)", flexShrink: 0 }}>
         <Shield size={13} style={{ color: "var(--px-brand)" }} />
         <span style={{ fontFamily: "var(--px-display)", fontSize: "var(--px-text-sm)", fontWeight: 700, color: "var(--px-text)" }}>ADMINISTRACIÓN</span>
-        {/* Roles/Actividad son 100% mock local — el badge refleja "real" en Usuarios y Auditoría, las sub-tabs con datos de BD */}
-        <OriginBadge real={activeSubTab === "usuarios" ? esReal : activeSubTab === "auditoria" ? auditEsReal : false} />
+        {/* Actividad sigue en mock local (sin fuente de datos real, ver CLAUDE.md) — Usuarios/Roles/Auditoría ya son reales */}
+        <OriginBadge real={activeSubTab === "usuarios" ? esReal : activeSubTab === "auditoria" ? auditEsReal : activeSubTab === "roles" ? rolesEsReal : false} />
         <div className="hidden sm:flex items-center gap-3 ml-2">
           <span style={{ fontFamily: "var(--px-mono)", fontSize: "var(--px-text-xs)", color: "var(--px-ok)" }}><span style={{ fontWeight: 700 }}>{stats.activeUsers}</span> activos</span>
           <span style={{ fontFamily: "var(--px-mono)", fontSize: "var(--px-text-xs)", color: "var(--px-text-faint)" }}>{stats.todayActions} acciones hoy</span>
@@ -557,8 +602,8 @@ export default function AdminTab() {
           <div className="space-y-4">
             <div className="grid grid-cols-1" style={{ gap: "var(--px-3)" }}>
               {roles.map(role => (
-                <TacticalCard key={role.id} className="overflow-hidden">
-                  <button onClick={() => setExpandedRole(expandedRole === role.id ? null : role.id)} className="w-full flex items-center justify-between" aria-expanded={expandedRole === role.id} aria-controls={`role-details-${role.id}`} style={{ padding: "var(--px-3) var(--px-4)", borderBottom: expandedRole === role.id ? "1px solid var(--px-hairline)" : "none" }}>
+                <TacticalCard key={role.slug} className="overflow-hidden">
+                  <button onClick={() => setExpandedRole(expandedRole === role.slug ? null : role.slug)} className="w-full flex items-center justify-between" aria-expanded={expandedRole === role.slug} aria-controls={`role-details-${role.slug}`} style={{ padding: "var(--px-3) var(--px-4)", borderBottom: expandedRole === role.slug ? "1px solid var(--px-hairline)" : "none" }}>
                     <div className="flex items-center" style={{ gap: "var(--px-4)" }}>
                       <div className="flex items-center justify-center w-10 h-10 rounded" style={{ background: `${role.color}15`, border: `1px solid ${role.color}30` }}>
                         <ShieldCheck size={18} style={{ color: role.color }} />
@@ -567,10 +612,10 @@ export default function AdminTab() {
                         <div className="flex items-center gap-2">
                           <span style={{ fontWeight: 600, fontSize: "var(--px-text-md)", color: "var(--px-text)" }}>{role.name}</span>
                           <span className="px-2 py-0.5 rounded" style={{ background: `${role.color}20`, color: role.color, fontFamily: "var(--px-mono)", fontSize: "var(--px-text-xs)", fontWeight: 600 }}>
-                            NIVEL: {role.level.toUpperCase()}
+                            {role.slug.toUpperCase()}
                           </span>
                         </div>
-                        <div style={{ fontFamily: "var(--px-mono)", fontSize: "var(--px-text-xs)", color: "var(--px-text-muted)" }}>{role.description}</div>
+                        <div style={{ fontFamily: "var(--px-mono)", fontSize: "var(--px-text-xs)", color: "var(--px-text-muted)" }}>{ROLE_DESCRIPTIONS[role.slug] || ""}</div>
                       </div>
                     </div>
                     <div className="flex items-center" style={{ gap: "var(--px-4)" }}>
@@ -581,31 +626,31 @@ export default function AdminTab() {
                       <div className="text-right">
                         <div className="px-eyebrow">PERMISOS</div>
                         <div style={{ fontFamily: "var(--px-mono)", fontSize: "var(--px-text-lg)", fontWeight: 700, color: "var(--px-brand)" }}>
-                          {Object.values(role.permissions).filter(p => p.read || p.write).length}
+                          {Object.values(role.permissions).filter(p => p.canView || p.canEdit || p.canDelete || p.canExport).length}
                         </div>
                       </div>
-                      {expandedRole === role.id ? <ChevronDown size={16} style={{ color: "var(--px-text-muted)" }} /> : <ChevronRight size={16} style={{ color: "var(--px-text-muted)" }} />}
+                      {expandedRole === role.slug ? <ChevronDown size={16} style={{ color: "var(--px-text-muted)" }} /> : <ChevronRight size={16} style={{ color: "var(--px-text-muted)" }} />}
                     </div>
                   </button>
 
-                  {expandedRole === role.id && (
-                    <div id={`role-details-${role.id}`} style={{ padding: "var(--px-3) var(--px-4)" }}>
+                  {expandedRole === role.slug && (
+                    <div id={`role-details-${role.slug}`} style={{ padding: "var(--px-3) var(--px-4)" }}>
                       <div className="px-eyebrow" style={{ marginBottom: "var(--px-2)" }}>
                         PERMISOS ASIGNADOS
                       </div>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
-                        {ALL_MODULES.map(mod => {
-                          const perm = role.permissions[mod] || { read: false, write: false };
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        {Object.entries(MODULE_LABELS).map(([mod, label]) => {
+                          const perm = role.permissions[mod] || { canView: false, canEdit: false, canDelete: false, canExport: false };
+                          const anyPerm = perm.canView || perm.canEdit || perm.canDelete || perm.canExport;
                           return (
-                            <div key={mod} className="flex items-center justify-between px-3 py-2 rounded" style={{ background: "var(--px-surface)", border: `1px solid ${perm.read ? "color-mix(in srgb, var(--px-ok) 15%, transparent)" : "color-mix(in srgb, var(--px-crit) 10%, transparent)"}` }}>
-                              <span style={{ fontFamily: "var(--px-mono)", fontSize: "var(--px-text-xs)", color: perm.read ? "var(--px-text)" : "var(--px-text-muted)" }}>{mod}</span>
+                            <div key={mod} className="flex items-center justify-between px-3 py-2 rounded flex-wrap gap-1" style={{ background: "var(--px-surface)", border: `1px solid ${anyPerm ? "color-mix(in srgb, var(--px-ok) 15%, transparent)" : "color-mix(in srgb, var(--px-crit) 10%, transparent)"}` }}>
+                              <span style={{ fontFamily: "var(--px-mono)", fontSize: "var(--px-text-xs)", color: anyPerm ? "var(--px-text)" : "var(--px-text-muted)" }}>{label}</span>
                               <div className="flex gap-1">
-                                <span className="px-1.5 py-0.5 rounded" style={{ background: perm.read ? "color-mix(in srgb, var(--px-ok) 15%, transparent)" : "color-mix(in srgb, var(--px-crit) 10%, transparent)", color: perm.read ? "var(--px-ok)" : "var(--px-crit)", fontSize: "var(--px-text-xs)", fontWeight: 600 }}>
-                                  {perm.read ? "R" : "—"}
-                                </span>
-                                <span className="px-1.5 py-0.5 rounded" style={{ background: perm.write ? "color-mix(in srgb, var(--px-brand) 15%, transparent)" : "color-mix(in srgb, var(--px-crit) 10%, transparent)", color: perm.write ? "var(--px-brand)" : "var(--px-crit)", fontSize: "var(--px-text-xs)", fontWeight: 600 }}>
-                                  {perm.write ? "W" : "—"}
-                                </span>
+                                {([["V", perm.canView, "var(--px-ok)"], ["E", perm.canEdit, "var(--px-brand)"], ["D", perm.canDelete, "var(--px-crit)"], ["X", perm.canExport, "var(--px-warn)"]] as const).map(([letter, on, color]) => (
+                                  <span key={letter} title={letter === "V" ? "Ver" : letter === "E" ? "Editar" : letter === "D" ? "Eliminar" : "Exportar"} className="px-1.5 py-0.5 rounded" style={{ background: on ? `color-mix(in srgb, ${color} 15%, transparent)` : "color-mix(in srgb, var(--px-text-muted) 10%, transparent)", color: on ? color : "var(--px-text-muted)", fontSize: "var(--px-text-xs)", fontWeight: 600 }}>
+                                    {on ? letter : "—"}
+                                  </span>
+                                ))}
                               </div>
                             </div>
                           );
@@ -615,8 +660,8 @@ export default function AdminTab() {
                         <button onClick={() => { setEditingRole({ ...role, permissions: { ...role.permissions } }); setShowEditPermissionsDialog(true); }} className="flex items-center gap-1 px-3 py-1.5 rounded" style={{ background: "color-mix(in srgb, var(--px-brand) 10%, transparent)", border: "1px solid color-mix(in srgb, var(--px-brand) 20%, transparent)", color: "var(--px-brand)", fontSize: "var(--px-text-sm)", fontWeight: 600 }}>
                           <Edit size={12} /> EDITAR PERMISOS
                         </button>
-                        <button onClick={() => handleDuplicateRole(role)} className="flex items-center gap-1 px-3 py-1.5 rounded" style={{ border: "1px solid var(--px-hairline)", color: "var(--px-text-muted)", fontSize: "var(--px-text-sm)", fontWeight: 600 }}>
-                          <Copy size={12} /> DUPLICAR ROL
+                        <button onClick={() => handleResetRolePermissions(role)} className="flex items-center gap-1 px-3 py-1.5 rounded" style={{ border: "1px solid var(--px-hairline)", color: "var(--px-text-muted)", fontSize: "var(--px-text-sm)", fontWeight: 600 }}>
+                          <RefreshCw size={12} /> RESTABLECER A VALORES PREDETERMINADOS
                         </button>
                       </div>
                     </div>
@@ -758,7 +803,7 @@ export default function AdminTab() {
               <div>
                 <label className="px-label">ROL *</label>
                 <select value={newUser.role} onChange={e => setNewUser(p => ({ ...p, role: e.target.value }))} className="px-input mt-1">
-                  {roles.map(r => <option key={r.id} value={r.name}>{r.name}</option>)}
+                  {roles.map(r => <option key={r.slug} value={r.name}>{r.name}</option>)}
                 </select>
               </div>
               <div>
@@ -857,7 +902,7 @@ export default function AdminTab() {
               <div>
                 <label className="px-label">ROL</label>
                 <select value={editingUser.role} onChange={e => setEditingUser({ ...editingUser, role: e.target.value })} className="px-input mt-1">
-                  {roles.map(r => <option key={r.id} value={r.name}>{r.name}</option>)}
+                  {roles.map(r => <option key={r.slug} value={r.name}>{r.name}</option>)}
                 </select>
               </div>
               <div>
@@ -884,34 +929,40 @@ export default function AdminTab() {
               <button onClick={() => setShowEditPermissionsDialog(false)} className="p-1 rounded" style={{ background: "color-mix(in srgb, var(--px-crit) 10%, transparent)" }} aria-label="Cerrar"><X size={16} style={{ color: "var(--px-crit)" }} /></button>
             </div>
             <div className="overflow-x-auto">
-            <table className="w-full" style={{ fontFamily: "var(--px-mono)", fontSize: "var(--px-text-sm)", minWidth: 400 }}>
+            <table className="w-full" style={{ fontFamily: "var(--px-mono)", fontSize: "var(--px-text-sm)", minWidth: 500 }}>
               <thead>
                 <tr style={{ background: "color-mix(in srgb, var(--px-brand) 4%, transparent)" }}>
                   <th scope="col" className="px-3 py-2 text-left" style={{ color: "var(--px-text-muted)", fontSize: "var(--px-text-xs)" }}>MODULO</th>
-                  <th scope="col" className="px-3 py-2 text-center" style={{ color: "var(--px-ok)", fontSize: "var(--px-text-xs)" }}>LECTURA (R)</th>
-                  <th scope="col" className="px-3 py-2 text-center" style={{ color: "var(--px-brand)", fontSize: "var(--px-text-xs)" }}>ESCRITURA (W)</th>
+                  <th scope="col" className="px-3 py-2 text-center" style={{ color: "var(--px-ok)", fontSize: "var(--px-text-xs)" }}>VER</th>
+                  <th scope="col" className="px-3 py-2 text-center" style={{ color: "var(--px-brand)", fontSize: "var(--px-text-xs)" }}>EDITAR</th>
+                  <th scope="col" className="px-3 py-2 text-center" style={{ color: "var(--px-crit)", fontSize: "var(--px-text-xs)" }}>ELIMINAR</th>
+                  <th scope="col" className="px-3 py-2 text-center" style={{ color: "var(--px-warn)", fontSize: "var(--px-text-xs)" }}>EXPORTAR</th>
                 </tr>
               </thead>
               <tbody>
-                {ALL_MODULES.map(mod => {
-                  const perm = editingRole.permissions[mod] || { read: false, write: false };
+                {Object.entries(MODULE_LABELS).map(([mod, label]) => {
+                  const perm = editingRole.permissions[mod] || { canView: false, canEdit: false, canDelete: false, canExport: false };
+                  const setPerm = (patch: Partial<RolePerms>) => {
+                    const newPerms = { ...editingRole.permissions };
+                    newPerms[mod] = { ...perm, ...patch };
+                    // Sin "ver" no tiene sentido conservar los demás — coherente con cómo se interpreta en el servidor.
+                    if (patch.canView === false) newPerms[mod] = { canView: false, canEdit: false, canDelete: false, canExport: false };
+                    setEditingRole({ ...editingRole, permissions: newPerms });
+                  };
                   return (
                     <tr key={mod} style={{ borderBottom: "1px solid var(--px-hairline)" }}>
-                      <td className="px-3 py-2" style={{ color: "var(--px-text)" }}>{mod}</td>
+                      <td className="px-3 py-2" style={{ color: "var(--px-text)" }}>{label}</td>
                       <td className="px-3 py-2 text-center">
-                        <input type="checkbox" checked={perm.read} aria-label={`Lectura para ${mod}`} onChange={() => {
-                          const newPerms = { ...editingRole.permissions };
-                          newPerms[mod] = { ...perm, read: !perm.read };
-                          if (!perm.read === false) newPerms[mod].write = false;
-                          setEditingRole({ ...editingRole, permissions: newPerms });
-                        }} className="accent-green-500 w-4 h-4" />
+                        <input type="checkbox" checked={perm.canView} aria-label={`Ver ${label}`} onChange={() => setPerm({ canView: !perm.canView })} className="accent-green-500 w-4 h-4" />
                       </td>
                       <td className="px-3 py-2 text-center">
-                        <input type="checkbox" checked={perm.write} disabled={!perm.read} aria-label={`Escritura para ${mod}`} onChange={() => {
-                          const newPerms = { ...editingRole.permissions };
-                          newPerms[mod] = { ...perm, write: !perm.write };
-                          setEditingRole({ ...editingRole, permissions: newPerms });
-                        }} className="accent-cyan-500 w-4 h-4" />
+                        <input type="checkbox" checked={perm.canEdit} disabled={!perm.canView} aria-label={`Editar ${label}`} onChange={() => setPerm({ canEdit: !perm.canEdit })} className="accent-cyan-500 w-4 h-4" />
+                      </td>
+                      <td className="px-3 py-2 text-center">
+                        <input type="checkbox" checked={perm.canDelete} disabled={!perm.canView} aria-label={`Eliminar en ${label}`} onChange={() => setPerm({ canDelete: !perm.canDelete })} className="accent-red-500 w-4 h-4" />
+                      </td>
+                      <td className="px-3 py-2 text-center">
+                        <input type="checkbox" checked={perm.canExport} disabled={!perm.canView} aria-label={`Exportar ${label}`} onChange={() => setPerm({ canExport: !perm.canExport })} className="accent-yellow-500 w-4 h-4" />
                       </td>
                     </tr>
                   );

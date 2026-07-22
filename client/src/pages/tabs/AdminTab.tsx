@@ -17,6 +17,7 @@ import { toast } from "sonner";
 import { ModuleHeader, OriginBadge } from "@/components/dashboard";
 import { trpc } from "@/lib/trpc";
 import { TRPCClientError } from "@trpc/client";
+import { INSTITUTIONAL_ROLE_LABELS as ROLE_SLUG_TO_LABEL, ROLE_LABEL_TO_SLUG } from "@/lib/institutionalRoles";
 
 /* ─── Types ─── */
 interface User {
@@ -107,14 +108,6 @@ const DEMO_AUDIT_LOGS: AuditLog[] = [
   { id: 12, timestamp: "17/04/2026 17:58:30", user: "Lic. Miguel Ángel Reyes", action: "VIEW_REPORT", module: "Tablero", detail: "Consulta de estadísticas mensuales", ip: "10.0.4.22", status: "success" },
 ];
 
-/* ─── Mapeo etiqueta ↔ slug institucional (BD) ─── */
-const ROLE_LABEL_TO_SLUG: Record<string, string> = {
-  Administrador: "admin", Supervisor: "supervisor", Analista: "analista",
-  Operador: "operador", Consulta: "consulta", Policía: "policia", Comandante: "comandante",
-};
-const ROLE_SLUG_TO_LABEL: Record<string, string> = Object.fromEntries(
-  Object.entries(ROLE_LABEL_TO_SLUG).map(([label, slug]) => [slug, label])
-);
 const ROLE_COLORS: Record<string, string> = {
   admin: "#FF3B3B", supervisor: "#FFB800", analista: "#00D4FF", operador: "#00FF88",
   consulta: "var(--px-text-muted)", policia: "#4FC3F7", comandante: "#AB47BC",

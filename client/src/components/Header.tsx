@@ -11,14 +11,7 @@ import UserPanel, { type UserProfile } from "./UserPanel";
 import NotificationPanel from "./NotificationPanel";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { trpc } from "@/lib/trpc";
-
-// Etiquetas de los 7 roles institucionales reales (users.institutionalRole),
-// mismo mapeo que AdminTab.tsx (ROLE_SLUG_TO_LABEL) — para mostrar el rol
-// real del usuario autenticado, no el enum genérico users.role ("user"/"admin").
-const INSTITUTIONAL_ROLE_LABELS: Record<string, string> = {
-  admin: "Administrador", supervisor: "Supervisor", analista: "Analista",
-  operador: "Operador", consulta: "Consulta", policia: "Policía", comandante: "Comandante",
-};
+import { INSTITUTIONAL_ROLE_LABELS } from "@/lib/institutionalRoles";
 
 // Tokens sobrio-institucional (alineados al NotificationPanel).
 // Cian = solo acento de marca puntual; el color lo carga la severidad/estado.

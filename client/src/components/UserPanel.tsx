@@ -67,7 +67,7 @@ interface UserPanelProps {
 }
 
 export default function UserPanel({ user, onClose, onLogout }: UserPanelProps) {
-  const { modules } = useAccessibleModules();
+  const { modules, isLoading: modulesLoading } = useAccessibleModules();
   const isMobile = useIsMobile();
   const [view, setView] = useState<"cred" | "cuenta">("cred");
   const [isLoggingOut, setIsLoggingOut] = useState(false);
@@ -99,10 +99,13 @@ export default function UserPanel({ user, onClose, onLogout }: UserPanelProps) {
   const email = user.correo;
 
   // Niveles de acceso reales: grupos de navegación cuyo módulo RBAC (si tiene)
-  // está en auth.getAccessibleModules del usuario autenticado.
+  // está en auth.getAccessibleModules del usuario autenticado. Mientras carga,
+  // se marca "verificando" en vez de "restringido" — evita el parpacheo de
+  // mostrar restringido y luego corregir a habilitado para un admin real.
   const clearances = NAV_GROUPS.map((g) => ({
     label: g.label,
     enabled: !g.requireModule || modules.includes(g.requireModule),
+    loading: !!g.requireModule && modulesLoading,
   }));
 
   const initials = user.nombre
@@ -179,11 +182,13 @@ export default function UserPanel({ user, onClose, onLogout }: UserPanelProps) {
         <div className="px-cred-section-label">// Niveles de acceso</div>
         <ul className="px-cred-clear">
           {clearances.map((c) => (
-            <li key={c.label} className={`px-cred-clear-row ${c.enabled ? "ok" : "no"}`}>
+            <li key={c.label} className={`px-cred-clear-row ${c.loading ? "" : c.enabled ? "ok" : "no"}`}>
               <span className="bar" aria-hidden />
               <span className="name">{c.label}</span>
               <span className="state">
-                {c.enabled ? (
+                {c.loading ? (
+                  "verificando…"
+                ) : c.enabled ? (
                   <>
                     <Check size={12} /> habilitado
                   </>
@@ -299,7 +304,10 @@ export default function UserPanel({ user, onClose, onLogout }: UserPanelProps) {
           <div className="px-cred-row">
             <dt>Niveles habilitados</dt>
             <dd className="px-cred-locked">
-              <Lock size={10} /> {clearances.filter((c) => c.enabled).map((c) => c.label).join(" · ")}
+              <Lock size={10} />{" "}
+              {clearances.some((c) => c.loading)
+                ? "verificando…"
+                : clearances.filter((c) => c.enabled).map((c) => c.label).join(" · ")}
             </dd>
           </div>
           <div className="px-cred-row">

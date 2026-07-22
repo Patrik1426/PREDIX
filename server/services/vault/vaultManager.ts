@@ -327,6 +327,18 @@ export class VaultManager {
   }
 
   /**
+   * Borra TODO el historial de auditoría de la bóveda (secret_audit_log).
+   * Destructivo e irreversible — pensado para limpiar ruido de pruebas en
+   * desarrollo, no para uso rutinario en producción (destruye el rastro
+   * forense real). Gateado en el router con requirePermission(canDelete).
+   */
+  async clearAuditLogs(): Promise<void> {
+    const db = await getDb();
+    if (!db) throw new Error("Vault no disponible (sin conexión a BD)");
+    await db.delete(secretAuditLog);
+  }
+
+  /**
    * Check if secrets need rotation
    */
   async getSecretsNeedingRotation(): Promise<SecretInfo[]> {

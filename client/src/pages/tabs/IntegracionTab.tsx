@@ -267,6 +267,14 @@ export default function IntegracionTab() {
     onSuccess: () => { utils.vault.listAllSecrets.invalidate(); utils.vault.getAllAuditLogs.invalidate(); toast.success("Secreto eliminado"); },
     onError: onVaultMutError,
   });
+  const clearAuditLogsMut = trpc.vault.clearAuditLogs.useMutation({
+    onSuccess: () => { utils.vault.getAllAuditLogs.invalidate(); toast.success("Auditoría de la bóveda limpiada"); },
+    onError: onVaultMutError,
+  });
+  const handleClearAuditLogs = () => {
+    if (!window.confirm(`¿Borrar las ${auditLogs.length} entradas del historial de auditoría? Esta acción no se puede deshacer.`)) return;
+    clearAuditLogsMut.mutate();
+  };
 
   /* ─── Create Secret ─── */
   const handleCreateSecret = () => {
@@ -503,7 +511,10 @@ export default function IntegracionTab() {
           <div className="space-y-4">
             <div className="flex items-center justify-between flex-wrap gap-2">
               <span className="px-section-title">REGISTRO DE AUDITORÍA ({auditLogs.length} entradas)</span>
-              <button onClick={() => { const csv = ["Timestamp,Usuario,Acción,Integración,Estado,IP", ...auditLogs.map(l => `${l.timestamp},Usuario #${l.userId},${l.action},${nombreIntegracion(l.integrationId)},${l.status},${l.ipAddress ?? ""}`)].join("\n"); const blob = new Blob([csv], { type: "text/csv" }); const url = URL.createObjectURL(blob); const a = document.createElement("a"); a.href = url; a.download = "auditoria_vault.csv"; a.click(); URL.revokeObjectURL(url); toast.success("Auditoría exportada"); }} className="flex items-center gap-1 px-3 py-1.5 rounded" style={{ background: "color-mix(in srgb, var(--px-brand) 10%, transparent)", border: "1px solid color-mix(in srgb, var(--px-brand) 20%, transparent)", color: "var(--px-brand)", fontSize: "var(--px-text-sm)", fontWeight: 600 }}><Download size={12} /> EXPORTAR</button>
+              <div className="flex gap-2">
+                <button onClick={() => { const csv = ["Timestamp,Usuario,Acción,Integración,Estado,IP", ...auditLogs.map(l => `${l.timestamp},Usuario #${l.userId},${l.action},${nombreIntegracion(l.integrationId)},${l.status},${l.ipAddress ?? ""}`)].join("\n"); const blob = new Blob([csv], { type: "text/csv" }); const url = URL.createObjectURL(blob); const a = document.createElement("a"); a.href = url; a.download = "auditoria_vault.csv"; a.click(); URL.revokeObjectURL(url); toast.success("Auditoría exportada"); }} className="flex items-center gap-1 px-3 py-1.5 rounded" style={{ background: "color-mix(in srgb, var(--px-brand) 10%, transparent)", border: "1px solid color-mix(in srgb, var(--px-brand) 20%, transparent)", color: "var(--px-brand)", fontSize: "var(--px-text-sm)", fontWeight: 600 }}><Download size={12} /> EXPORTAR</button>
+                <button onClick={handleClearAuditLogs} disabled={auditLogs.length === 0} className="flex items-center gap-1 px-3 py-1.5 rounded" style={{ background: "color-mix(in srgb, var(--px-crit) 10%, transparent)", border: "1px solid color-mix(in srgb, var(--px-crit) 20%, transparent)", color: "var(--px-crit)", fontSize: "var(--px-text-sm)", fontWeight: 600, opacity: auditLogs.length === 0 ? 0.5 : 1 }}><Trash2 size={12} /> LIMPIAR</button>
+              </div>
             </div>
             <TacticalCard className="overflow-hidden">
               <div className="overflow-x-auto">

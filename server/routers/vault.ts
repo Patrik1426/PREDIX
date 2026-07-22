@@ -192,6 +192,14 @@ export const vaultRouter = router({
     }),
 
   /**
+   * Borra todo el historial de auditoría de la bóveda — destructivo, solo canDelete
+   */
+  clearAuditLogs: requirePermission(MODULES.ADMIN, "canDelete").mutation(async () => {
+    await vaultManager.clearAuditLogs();
+    return { success: true, message: "Auditoría de la bóveda limpiada" };
+  }),
+
+  /**
    * Get secrets needing rotation
    */
   getSecretsNeedingRotation: requirePermission(MODULES.ADMIN, "canView").query(async () => {

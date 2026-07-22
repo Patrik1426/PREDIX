@@ -8,6 +8,7 @@
 import { describe, expect, it } from "vitest";
 import { TRPCError } from "@trpc/server";
 import { appRouter } from "../routers";
+import { resolveAlertaCoords } from "./alertas";
 import type { TrpcContext } from "../_core/auth/context";
 
 type AuthenticatedUser = NonNullable<TrpcContext["user"]>;
@@ -152,5 +153,25 @@ describe("alertas mutations — auditoría", () => {
     // se llamó con los argumentos correctos" vive en auditLog.test.ts.
     const result = await caller.alertas.crear({ nivel: "info", titulo: "x", municipio: "Toluca" });
     expect(result.success).toBe(false);
+  });
+});
+
+describe("resolveAlertaCoords", () => {
+  it("resuelve la coordenada real de la cabecera municipal cuando no se manda lat/lng", () => {
+    const { lat, lng } = resolveAlertaCoords("Toluca");
+    expect(lat).toBeCloseTo(19.29349, 4);
+    expect(lng).toBeCloseTo(-99.65732, 4);
+  });
+
+  it("respeta lat/lng explícitos si vienen (no los sobreescribe con el centroide)", () => {
+    const { lat, lng } = resolveAlertaCoords("Toluca", 20.1, -100.2);
+    expect(lat).toBe(20.1);
+    expect(lng).toBe(-100.2);
+  });
+
+  it("devuelve undefined (nunca una posición inventada) si el municipio no matchea ninguno real", () => {
+    const { lat, lng } = resolveAlertaCoords("Municipio Que No Existe");
+    expect(lat).toBeUndefined();
+    expect(lng).toBeUndefined();
   });
 });

@@ -7,6 +7,22 @@ import { eq, desc, gte, lte, and, sql } from "drizzle-orm";
 import { logger } from "../_core/logger";
 import { logAudit } from "../config/auditLog";
 import { emitEvent } from "../services/realtimeService";
+import { CENTROIDE_POR_NOMBRE } from "../data/edomexCentroids";
+
+/**
+ * Resuelve la coordenada real de una alerta: usa lat/lng explícitos si vienen
+ * (ej. un futuro pin manual del operador), si no cae a la cabecera municipal
+ * real; si el nombre no matchea ningún municipio, deja undefined (nunca una
+ * posición inventada).
+ */
+export function resolveAlertaCoords(
+  municipio: string,
+  lat?: number,
+  lng?: number
+): { lat?: number; lng?: number } {
+  const centroide = CENTROIDE_POR_NOMBRE[municipio];
+  return { lat: lat ?? centroide?.lat, lng: lng ?? centroide?.lng };
+}
 
 export const alertasRouter = router({
   listar: publicProcedure
@@ -65,13 +81,15 @@ export const alertasRouter = router({
       const db = await getDb();
       if (!db) return { success: false, message: "BD no disponible" };
       try {
+        const { lat, lng } = resolveAlertaCoords(input.municipio, input.lat, input.lng);
+
         const result = await db.insert(alertas).values({
           nivel: input.nivel,
           titulo: input.titulo,
           descripcion: input.descripcion || "",
           municipio: input.municipio,
-          lat: input.lat?.toString(),
-          lng: input.lng?.toString(),
+          lat: lat?.toString(),
+          lng: lng?.toString(),
           unidades: 0,
         });
         await logAudit({

@@ -173,13 +173,14 @@ export default function AlertasTab() {
   };
   const handleCrearAlerta = () => {
     if (!newAlert.titulo || !newAlert.municipio) { toast.error("Completa título y municipio"); return; }
+    // lat/lng no se envían: el servidor resuelve la coordenada real de la
+    // cabecera del municipio elegido (antes se mandaba un jitter aleatorio
+    // alrededor de CDMX sin relación con el municipio real).
     crearMut.mutate({
       nivel: newAlert.nivel as "critical" | "warning" | "info",
       titulo: newAlert.titulo,
       descripcion: newAlert.descripcion,
       municipio: newAlert.municipio,
-      lat: 19.4326 + (Math.random() - 0.5) * 0.3,
-      lng: -99.1332 + (Math.random() - 0.5) * 0.3,
     });
     setShowNewAlertDialog(false);
     setNewAlert({ titulo: "", descripcion: "", municipio: "", nivel: "warning" });

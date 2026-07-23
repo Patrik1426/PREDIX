@@ -1,6 +1,7 @@
 import { COOKIE_NAME, ONE_YEAR_MS } from "@shared/const";
 import { ForbiddenError } from "@shared/_core/errors";
 import { parse as parseCookieHeader } from "cookie";
+import { randomUUID } from "node:crypto";
 import type { Request } from "express";
 import { SignJWT, jwtVerify } from "jose";
 import type { User } from "../../drizzle/schema";
@@ -10,6 +11,14 @@ import { logger } from "./logger";
 
 const isNonEmptyString = (value: unknown): value is string =>
   typeof value === "string" && value.length > 0;
+
+// Generado una sola vez por arranque del proceso — se incrusta en cada JWT
+// firmado y se exige que coincida al verificar. Reiniciar el servidor
+// (deploy, restart de Railway, `pnpm dev` de nuevo) cambia este valor, así
+// que cualquier cookie de sesión previa deja de ser válida y fuerza un login
+// nuevo, en vez de que una cookie de ~1 año siga vigente indefinidamente
+// entre reinicios.
+const BOOT_ID = randomUUID();
 
 export type SessionPayload = {
   openId: string;
@@ -61,6 +70,7 @@ class SDKServer {
     return new SignJWT({
       openId: payload.openId,
       name: payload.name,
+      bootId: BOOT_ID,
     })
       .setProtectedHeader({ alg: "HS256", typ: "JWT" })
       .setExpirationTime(expirationSeconds)
@@ -80,10 +90,15 @@ class SDKServer {
       const { payload } = await jwtVerify(cookieValue, secretKey, {
         algorithms: ["HS256"],
       });
-      const { openId, name } = payload as Record<string, unknown>;
+      const { openId, name, bootId } = payload as Record<string, unknown>;
 
       if (!isNonEmptyString(openId) || !isNonEmptyString(name)) {
         logger.warn("[Auth] Session payload missing required fields");
+        return null;
+      }
+
+      if (bootId !== BOOT_ID) {
+        logger.warn("[Auth] Session emitida por un arranque anterior del servidor — requiere login de nuevo");
         return null;
       }
 

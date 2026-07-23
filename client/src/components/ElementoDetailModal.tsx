@@ -58,10 +58,13 @@ export default function ElementoDetailModal({ element, onClose, onCentrar }: Pro
               {isCmd ? <Shield size={22} /> : <Navigation size={22} />}
             </div>
             <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 mb-1">
+              <div className="flex items-center gap-2 mb-1 flex-wrap">
                 <span style={{ fontFamily: "var(--px-mono)", fontSize: "0.62rem", letterSpacing: "0.1em", color }}>{element.role.toUpperCase()}</span>
                 <span className="px-2 py-0.5 rounded-sm" style={{ fontFamily: "var(--px-mono)", fontSize: "0.62rem", background: "rgba(61,163,93,0.15)", border: "1px solid rgba(61,163,93,0.35)", color: "var(--px-ok)" }}>
                   ● EN LÍNEA
+                </span>
+                <span className="px-2 py-0.5 rounded-sm" style={{ fontFamily: "var(--px-mono)", fontSize: "0.62rem", background: "rgba(229,162,61,0.15)", border: "1px solid rgba(229,162,61,0.35)", color: "var(--px-warn)" }} title="Simulación de despliegue táctico — no rastrea personal real">
+                  DEMO
                 </span>
               </div>
               <h2 style={{ fontFamily: "var(--px-display)", fontSize: "1.3rem", fontWeight: 700, color: "var(--px-text)", lineHeight: 1.2 }}>

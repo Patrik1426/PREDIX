@@ -10,7 +10,6 @@ import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import "leaflet.heat";
 import { cn } from "@/lib/utils";
-import { ALERTAS_ACTIVAS } from "@/data/securityData";
 import { POLICE_ELEMENTS, type PoliceElement } from "@/data/policeData";
 
 export interface TacticalMapLayers {
@@ -33,6 +32,17 @@ export interface TacticalMunicipio {
   nivel: string;
   delitos: number;
   tendencia: number;
+}
+
+/** Alerta real georreferenciada (alertas.listar) para la capa "Alertas Activas". */
+export interface TacticalAlerta {
+  id: number;
+  lat: number;
+  lng: number;
+  titulo: string;
+  descripcion?: string;
+  municipio: string;
+  hora: string;
 }
 
 interface MunicipioGeoJsonProperties {
@@ -60,6 +70,8 @@ interface TacticalMapProps {
   layers?: TacticalMapLayers;
   /** Municipios reales a pintar (heatmap/marcadores/círculos). */
   municipios?: TacticalMunicipio[];
+  /** Alertas críticas reales a pintar (capa "Alertas Activas"). */
+  alertas?: TacticalAlerta[];
   /** Recentra el mapa al cambiar `key` (click en panel lateral). */
   focus?: { lat: number; lng: number; zoom?: number; key: number };
   /** Reporta centro/zoom al terminar un movimiento (coords vivas). */
@@ -84,6 +96,7 @@ export default function TacticalMap({
   zoom,
   layers = { heatmap: true, municipios: true, policia: true },
   municipios = [],
+  alertas = [],
   focus,
   onViewChange,
   onSelectMunicipio,
@@ -134,38 +147,22 @@ export default function TacticalMap({
 
     const g = groups.current;
 
-    // Las capas de incidencia (heatmap/marcadores/círculos) se construyen desde
-    // la prop `municipios` (datos reales) en un efecto aparte, para que se
-    // re-pinten cuando llegan/cambian los datos.
+    // Las capas de incidencia (heatmap/marcadores/círculos), alertas y elementos
+    // se construyen desde props (datos reales / demo etiquetado) en efectos
+    // aparte, para que se re-pinten cuando llegan/cambian los datos.
 
-    // Alertas críticas (marcador pulsante para llamar la atención)
-    ALERTAS_ACTIVAS.filter((a) => a.nivel === "critical").forEach((al) => {
-      const icon = L.divIcon({
-        className: "tac-alert-icon",
-        html: `<span class="tac-ping"></span><span class="tac-ping-core"></span>`,
-        iconSize: [18, 18],
-        iconAnchor: [9, 9],
-      });
-      L.marker([al.lat, al.lng], { icon })
-        .bindPopup(
-          `<div class="tac-pop tac-pop-crit"><div class="tac-pop-eyebrow">⚠ ALERTA CRÍTICA — ${al.id}</div>
-           <div class="tac-pop-title" style="color:#FF6B6B">${al.titulo}</div>
-           <div class="tac-pop-desc">${al.descripcion}</div>
-           <div class="tac-pop-meta">${al.municipio} · ${al.hora}</div></div>`
-        )
-        .addTo(g.alertas);
-    });
-
-    // Elementos en campo
+    // Elementos en campo — DEMO: sin tabla real de rastreo de personal/flota
+    // (ver CLAUDE.md); marcado explícitamente en tooltip/popup para que nadie
+    // lo confunda con un despliegue real solo por pasar el mouse en el mapa.
     POLICE_ELEMENTS.filter((e) => e.status === "active").forEach((el) => {
       const isCmd = el.role === "Comandante";
       const color = isCmd ? "#AB47BC" : "#4FC3F7";
       const base: L.PathOptions = { color: "#ffffff", weight: 2, fillColor: color, fillOpacity: 0.9 };
       withHover(
         L.circleMarker([el.identification.lat, el.identification.lng], { radius: isCmd ? 9 : 6, ...base })
-          .bindTooltip(`${el.name} · ${el.identification.value}`, { direction: "top", className: "tac-tip" })
+          .bindTooltip(`${el.name} · ${el.identification.value} · DEMO`, { direction: "top", className: "tac-tip" })
           .bindPopup(
-            `<div class="tac-pop"><div class="tac-pop-eyebrow" style="color:${color}">${el.role.toUpperCase()}</div>
+            `<div class="tac-pop"><div class="tac-pop-eyebrow" style="color:${color}">${el.role.toUpperCase()} · DEMO</div>
              <div class="tac-pop-title">${el.name}</div>
              <div class="tac-pop-row"><span>Identificación</span><b style="color:${color}">${el.identification.value}</b></div>
              <div class="tac-pop-row"><span>Tipo rastreo</span><b>${el.identification.type.replace("_", " ").toUpperCase()}</b></div>
@@ -259,6 +256,31 @@ export default function TacticalMap({
 
     return () => { cancelled = true; };
   }, [municipios]);
+
+  // ── (Re)construye la capa de alertas críticas reales (prop `alertas`) ──
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    const g = groups.current;
+    g.alertas.clearLayers();
+
+    alertas.forEach((al) => {
+      const icon = L.divIcon({
+        className: "tac-alert-icon",
+        html: `<span class="tac-ping"></span><span class="tac-ping-core"></span>`,
+        iconSize: [18, 18],
+        iconAnchor: [9, 9],
+      });
+      L.marker([al.lat, al.lng], { icon })
+        .bindPopup(
+          `<div class="tac-pop tac-pop-crit"><div class="tac-pop-eyebrow">⚠ ALERTA CRÍTICA — ALT-${String(al.id).padStart(3, "0")}</div>
+           <div class="tac-pop-title" style="color:#FF6B6B">${al.titulo}</div>
+           <div class="tac-pop-desc">${al.descripcion || ""}</div>
+           <div class="tac-pop-meta">${al.municipio} · ${al.hora}</div></div>`
+        )
+        .addTo(g.alertas);
+    });
+  }, [alertas]);
 
   // ── (Re)construye capas de incidencia desde datos reales (`municipios`) ──
   useEffect(() => {

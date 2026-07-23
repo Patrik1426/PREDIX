@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
 import MapaTab from "./MapaTab";
 
 // Mock Google Maps
@@ -54,6 +54,26 @@ vi.mock("@/hooks/useIncidenciaData", () => ({
   }),
 }));
 
+// Mock de trpc para el KPI "Alertas críticas" (alertas.listar).
+vi.mock("@/lib/trpc", () => ({
+  trpc: {
+    alertas: {
+      listar: {
+        useQuery: () => ({
+          data: {
+            origen: "real",
+            data: [
+              { id: 1, nivel: "critical", resuelta: 0 },
+              { id: 2, nivel: "critical", resuelta: 1 },
+              { id: 3, nivel: "warning", resuelta: 0 },
+            ],
+          },
+        }),
+      },
+    },
+  },
+}));
+
 describe("MapaTab", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -76,8 +96,16 @@ describe("MapaTab", () => {
 
   it("renders municipality list panel", () => {
     render(<MapaTab />);
-    
+
     expect(screen.getByText("MUNICIPIOS")).toBeDefined();
+  });
+
+  it("calcula 'Alertas críticas' real desde alertas.listar (críticas no resueltas, no total)", () => {
+    render(<MapaTab />);
+    // Mock: 2 alertas "critical" (1 resuelta, 1 no) + 1 "warning" → solo 1 cuenta.
+    // Match exacto (no substring) — con 11 no debe "pasar" solo porque contiene "1".
+    const kpi = screen.getByText("Alertas críticas").closest("div")!.parentElement!;
+    expect(within(kpi).getByText("1", { exact: true })).toBeInTheDocument();
   });
 
   it("toggles heatmap layer visibility", async () => {

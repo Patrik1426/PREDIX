@@ -8,11 +8,11 @@
 
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
-import TacticalMap, { type TacticalMunicipio } from "@/components/TacticalMap";
+import TacticalMap, { type TacticalMunicipio, type TacticalAlerta } from "@/components/TacticalMap";
 import ElementoDetailModal from "@/components/ElementoDetailModal";
-import { ALERTAS_ACTIVAS } from "@/data/securityData";
 import { POLICE_ELEMENTS, type PoliceElement } from "@/data/policeData";
 import { useIncidenciaMapa } from "@/hooks/useIncidenciaData";
+import { trpc } from "@/lib/trpc";
 import {
   Layers, Thermometer, MapPin, Filter, RefreshCw, Shield, Radio, Navigation,
   FlaskConical, Search, AlertTriangle, Users, ChevronUp, X,
@@ -105,7 +105,24 @@ export default function MapaTab() {
   const policeCount = POLICE_ELEMENTS.filter(e => e.role === "Policía" && e.status === "active").length;
   const commanderCount = POLICE_ELEMENTS.filter(e => e.role === "Comandante" && e.status === "active").length;
   const totalElementos = policeCount + commanderCount;
-  const alertasCriticas = ALERTAS_ACTIVAS.filter(a => a.nivel === "critical").length;
+  // Alertas críticas reales — misma fuente que Header/SideNav (alertas.listar).
+  const { data: alertasResp } = trpc.alertas.listar.useQuery();
+  const alertasCriticasReal = useMemo(
+    () => (alertasResp?.data ?? []).filter(a => a.nivel === "critical" && !a.resuelta),
+    [alertasResp],
+  );
+  const alertasCriticas = alertasCriticasReal.length;
+  // Solo las que ya tienen coordenada real (resolveAlertaCoords) — nunca una posición inventada.
+  const alertasMapa = useMemo<TacticalAlerta[]>(
+    () => alertasCriticasReal
+      .filter((a): a is typeof a & { lat: string; lng: string } => !!a.lat && !!a.lng)
+      .map(a => ({
+        id: a.id, lat: parseFloat(a.lat), lng: parseFloat(a.lng),
+        titulo: a.titulo, descripcion: a.descripcion || undefined, municipio: a.municipio,
+        hora: new Date(a.createdAt).toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" }),
+      })),
+    [alertasCriticasReal],
+  );
   const zonasCriticas = municipiosReal.filter(m => m.nivel === "crítico").length;
 
   const municipiosFiltrados = municipiosReal.filter(m =>
@@ -118,7 +135,7 @@ export default function MapaTab() {
     { id: "markers", label: "Municipios", icon: <MapPin size={11} /> },
     { id: "limites", label: "Límites Municipales", icon: <Navigation size={11} /> },
     { id: "alertas", label: "Alertas Activas", icon: <Filter size={11} /> },
-    { id: "policia", label: `Elementos (${totalElementos})`, icon: <Shield size={11} /> },
+    { id: "policia", label: `Elementos (${totalElementos}) · DEMO`, icon: <Shield size={11} /> },
   ];
   const layerButton = (layer: typeof LAYER_DEFS[number]) => {
     const on = activeLayers.has(layer.id);
@@ -162,7 +179,7 @@ export default function MapaTab() {
       <div className="flex shrink-0" style={{ borderBottom: "1px solid var(--px-hairline)" }}>
         {([
           { id: "municipios" as const, label: "MUNICIPIOS", icon: <MapPin size={11} /> },
-          { id: "elementos" as const, label: `ELEMENTOS (${totalElementos})`, icon: <Shield size={11} /> },
+          { id: "elementos" as const, label: `ELEMENTOS (${totalElementos}) · DEMO`, icon: <Shield size={11} /> },
         ]).map(t => (
           <button
             key={t.id}
@@ -239,6 +256,12 @@ export default function MapaTab() {
         </div>
       ) : (
         <div className="flex-1 overflow-y-auto scrollbar-tactical" style={{ minHeight: 0 }}>
+          <div className="px-3 py-2 flex items-center gap-2" style={{ borderBottom: "1px solid var(--px-hairline)", background: "color-mix(in srgb, var(--px-warn) 8%, transparent)" }}>
+            <AlertTriangle size={12} style={{ color: "var(--px-warn)", flexShrink: 0 }} />
+            <span style={{ fontFamily: "var(--px-mono)", fontSize: "var(--px-text-xs)", color: "var(--px-warn)" }}>
+              Simulación de despliegue táctico — no rastrea personal real.
+            </span>
+          </div>
           {POLICE_ELEMENTS.filter(e => e.status === "active").map(element => {
             const isCommander = element.role === "Comandante";
             const color = isCommander ? "#AB47BC" : "#4FC3F7";
@@ -291,7 +314,7 @@ export default function MapaTab() {
         <div className="flex md:grid md:grid-cols-4 gap-2 flex-1 overflow-x-auto scrollbar-tactical [&>*]:shrink-0 [&>*]:min-w-[150px] md:[&>*]:min-w-0">
           <Kpi label="Monitoreados" value={municipiosReal.length} unit="/ 125" icon={<MapPin size={11} />} accent="var(--px-brand)" />
           <Kpi label="Alertas críticas" value={alertasCriticas} icon={<AlertTriangle size={11} />} accent="var(--px-crit)" />
-          <Kpi label="Elementos en línea" value={totalElementos} icon={<Users size={11} />} accent="var(--px-ok)" />
+          <Kpi label="Elementos en línea" value={totalElementos} unit="DEMO" icon={<Users size={11} />} accent="var(--px-ok)" />
           <Kpi label="Zonas críticas" value={zonasCriticas} icon={<Shield size={11} />} accent="var(--px-warn)" />
         </div>
         <div className="hidden sm:flex items-center gap-1.5 self-start shrink-0" style={{
@@ -327,6 +350,7 @@ export default function MapaTab() {
               center={[EDOMEX_CENTER.lat, EDOMEX_CENTER.lng]}
               zoom={10}
               municipios={municipiosReal}
+              alertas={alertasMapa}
               layers={{
                 heatmap: activeLayers.has("heatmap"),
                 municipios: activeLayers.has("markers"),

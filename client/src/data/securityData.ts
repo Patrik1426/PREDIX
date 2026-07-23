@@ -3,19 +3,6 @@
 // Basado en datos reales de SESNSP, INEGI ENVIPE 2024
 // ============================================================
 
-export const MUNICIPIOS_ALTO_RIESGO = [
-  { nombre: "Ecatepec de Morelos", lat: 19.6012, lng: -99.0601, nivel: "crítico", delitos: 4821, tendencia: -3.4 },
-  { nombre: "Toluca", lat: 19.2826, lng: -99.6557, nivel: "alto", delitos: 3156, tendencia: 4.69 },
-  { nombre: "Tlalnepantla de Baz", lat: 19.5400, lng: -99.1950, nivel: "alto", delitos: 2987, tendencia: 10.48 },
-  { nombre: "Cuautitlán Izcalli", lat: 19.6500, lng: -99.2167, nivel: "alto", delitos: 2341, tendencia: 16.06 },
-  { nombre: "Naucalpan de Juárez", lat: 19.4800, lng: -99.2400, nivel: "alto", delitos: 2198, tendencia: 18.34 },
-  { nombre: "Nezahualcóyotl", lat: 19.4000, lng: -99.0167, nivel: "alto", delitos: 2087, tendencia: -5.2 },
-  { nombre: "Chimalhuacán", lat: 19.4200, lng: -98.9500, nivel: "medio", delitos: 1654, tendencia: 2.1 },
-  { nombre: "Ixtapaluca", lat: 19.3167, lng: -98.8833, nivel: "medio", delitos: 1432, tendencia: -1.8 },
-  { nombre: "Valle de Chalco", lat: 19.2833, lng: -98.9500, nivel: "medio", delitos: 1287, tendencia: 3.4 },
-  { nombre: "Texcoco", lat: 19.5167, lng: -98.8833, nivel: "bajo", delitos: 876, tendencia: -2.1 },
-];
-
 export const ALERTAS_ACTIVAS = [
   {
     id: "ALT-001",
@@ -275,57 +262,3 @@ export const DATOS_MENSUALES = [
   { mes: "Dic", robos: 3890, homicidios: 94, lesiones: 508, extorsion: 269 },
 ];
 
-export const TIPOS_DELITO = [
-  { nombre: "Robo a transeúnte", valor: 28.4, color: "#FF3B3B" },
-  { nombre: "Robo a vehículo", valor: 22.1, color: "#FF8C00" },
-  { nombre: "Robo a negocio", valor: 18.7, color: "#FFB800" },
-  { nombre: "Violencia familiar", valor: 12.3, color: "#00D4FF" },
-  { nombre: "Lesiones", valor: 9.8, color: "#00E676" },
-  { nombre: "Otros", valor: 8.7, color: "#8BA3C7" },
-];
-
-export const PREDICCIONES_ZONAS = [
-  { municipio: "Ecatepec de Morelos", riesgoActual: 92, riesgoPrediccion: 88, tendencia: "baja", confianza: 87 },
-  { municipio: "Toluca", riesgoActual: 74, riesgoPrediccion: 79, tendencia: "alza", confianza: 82 },
-  { municipio: "Tlalnepantla", riesgoActual: 71, riesgoPrediccion: 68, tendencia: "baja", confianza: 79 },
-  { municipio: "Cuautitlán Izcalli", riesgoActual: 65, riesgoPrediccion: 72, tendencia: "alza", confianza: 75 },
-  { municipio: "Naucalpan", riesgoActual: 62, riesgoPrediccion: 65, tendencia: "estable", confianza: 81 },
-  { municipio: "Nezahualcóyotl", riesgoActual: 58, riesgoPrediccion: 54, tendencia: "baja", confianza: 83 },
-  { municipio: "Chimalhuacán", riesgoActual: 55, riesgoPrediccion: 57, tendencia: "estable", confianza: 77 },
-  { municipio: "Ixtapaluca", riesgoActual: 48, riesgoPrediccion: 51, tendencia: "alza", confianza: 72 },
-];
-
-export const KPI_PRINCIPAL = {
-  totalIncidentesHoy: 47,
-  alertasActivas: 6,
-  unidadesEnLinea: 284,
-  municipiosMonitoreados: 125,
-  tasaResolucion: 68,
-  tiempoPromedioRespuesta: 8.5,
-};
-
-export const ZONAS_CALOR = [
-  { lat: 19.615, lng: -99.048, weight: 8, municipio: "Ecatepec" },
-  { lat: 19.622, lng: -99.055, weight: 9, municipio: "Ecatepec" },
-  { lat: 19.283, lng: -99.657, weight: 7, municipio: "Toluca" },
-  { lat: 19.541, lng: -99.197, weight: 6, municipio: "Tlalnepantla" },
-  { lat: 19.651, lng: -99.218, weight: 5, municipio: "Cuautitlán Izcalli" },
-  { lat: 19.481, lng: -99.241, weight: 4, municipio: "Naucalpan" },
-  { lat: 19.402, lng: -99.019, weight: 6, municipio: "Nezahualcóyotl" },
-  { lat: 19.543, lng: -99.196, weight: 3, municipio: "Tlalnepantla" },
-  { lat: 19.423, lng: -98.952, weight: 7, municipio: "Chimalhuacán" },
-  { lat: 19.318, lng: -98.884, weight: 8, municipio: "Ixtapaluca" },
-];
-
-export const CHATBOT_RESPONSES = {
-  saludo: "Hola, soy ATENEA, tu asistente de seguridad pública. ¿En qué puedo ayudarte?",
-  incidentes: "Actualmente hay 47 incidentes registrados en el Estado de México. ¿Deseas información sobre alguno en específico?",
-  alertas: "Hay 6 alertas activas. Las más críticas son en Ecatepec y Chimalhuacán.",
-  municipios: "Monitoreo activo en 10 municipios principales del Estado de México.",
-  prediccion: "Según el modelo ATENEA-ML, el riesgo en Ecatepec se mantendrá alto. Recomendamos refuerzo de patrullaje.",
-  estadisticas: "En lo que va del mes: 3,560 robos, 92 homicidios, 478 lesiones. Tendencia al alza.",
-  toluca: "Toluca registra 74 puntos de riesgo. Incremento del 22% en robos a transeúnte en zona centro.",
-  ayuda: "Puedo ayudarte con: incidentes, alertas, predicciones, estadísticas, información por municipio.",
-  ecatepec: "Ecatepec es el municipio con mayor incidencia. Registra 92 puntos de riesgo crítico.",
-  default: "No entendí tu pregunta. ¿Puedes reformularla?",
-}

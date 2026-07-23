@@ -11,6 +11,7 @@ import PredictionChart from "@/components/PredictionChart";
 import { toast } from "sonner";
 import { OriginBadge } from "@/components/dashboard";
 import { useIncidenciaSummary } from "@/hooks/useIncidenciaData";
+import { TIPO_DELITO_LABELS } from "@/lib/delitoLabels";
 
 // Los 4 niveles de riesgo comparten un solo significado en toda la app —
 // mismo mapeo de color que ZonasTab.tsx (bajo=ok, medio=brand, alto=warn, crítico=crit).
@@ -32,15 +33,6 @@ const TENDENCIA_INFO: Record<string, { label: string; Icon: typeof TrendingUp; c
   al_alza: { label: "Va en aumento", Icon: TrendingUp, color: "var(--px-crit)" },
   a_la_baja: { label: "Va en disminución", Icon: TrendingDown, color: "var(--px-ok)" },
   estable: { label: "Se mantiene estable", Icon: Minus, color: "var(--px-text-muted)" },
-};
-
-const TIPO_LABELS: Record<string, string> = {
-  homicidios: "Homicidios",
-  robos: "Robos",
-  lesiones: "Lesiones",
-  violencia_sexual: "Violencia sexual",
-  narcomenudeo: "Narcomenudeo",
-  otros: "Otros delitos",
 };
 
 const CLASE_LABELS: Record<string, string> = {
@@ -326,7 +318,7 @@ export default function PrediccionesTab() {
                       {pred.desglose.map((d: any) => (
                         <div key={d.tipo} className="flex items-center gap-2" style={{ padding: "6px 0", borderBottom: "1px solid var(--px-hairline)" }}>
                           <span style={{ fontFamily: "var(--px-body)", fontSize: "var(--px-text-xs)", color: "var(--px-text-muted)", flex: 1 }}>
-                            {TIPO_LABELS[d.tipo] || d.tipo}
+                            {TIPO_DELITO_LABELS[d.tipo] || d.tipo}
                           </span>
                           <span style={{ fontFamily: "var(--px-mono)", fontSize: "var(--px-text-sm)", fontWeight: 700, color: "var(--px-brand)", width: 48, textAlign: "right" }}>
                             {d.promedioPredictivo}

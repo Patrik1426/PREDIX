@@ -4,22 +4,14 @@
 // Mobile: mapa protagonista + ranking toggle
 // ============================================================
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import TacticalMap, { type TacticalMunicipio } from "@/components/TacticalMap";
-import { MUNICIPIOS_ALTO_RIESGO, TIPOS_DELITO } from "@/data/securityData";
 import { useIncidenciaMapa, useIncidenciaSummary } from "@/hooks/useIncidenciaData";
-import { Target, TrendingUp, TrendingDown, Minus, BarChart2, ChevronUp, MapPin } from "lucide-react";
+import { trpc } from "@/lib/trpc";
+import { TIPO_DELITO_LABELS } from "@/lib/delitoLabels";
+import { Target, TrendingUp, TrendingDown, Minus, BarChart2 } from "lucide-react";
 import { RadarChart, PolarGrid, PolarAngleAxis, Radar, ResponsiveContainer, Tooltip } from "recharts";
-import { OriginBadge } from "@/components/dashboard";
-
-const RADAR_DATA = [
-  { tipo: "Robo transeúnte", valor: 88 },
-  { tipo: "Robo vehículo", valor: 72 },
-  { tipo: "Robo negocio", valor: 65 },
-  { tipo: "Violencia familiar", valor: 54 },
-  { tipo: "Lesiones", valor: 48 },
-  { tipo: "Extorsión", valor: 41 },
-];
+import { OriginBadge, EmptyState } from "@/components/dashboard";
 
 function nivelColor(nivel: string) {
   if (nivel === "crítico") return "var(--px-crit)";
@@ -30,7 +22,7 @@ function nivelColor(nivel: string) {
 
 export default function ZonasTab() {
   const { data: summary } = useIncidenciaSummary();
-  const [selectedMunicipio, setSelectedMunicipio] = useState(MUNICIPIOS_ALTO_RIESGO[0]);
+  const [selectedNombre, setSelectedNombre] = useState("");
   const [focus, setFocus] = useState<{ lat: number; lng: number; zoom?: number; key: number }>();
   const [showPanel, setShowPanel] = useState(false);
   const [sideTab, setSideTab] = useState<"ranking" | "perfil">("ranking");
@@ -42,6 +34,23 @@ export default function ZonasTab() {
     () => mapaData.map((m) => ({ nombre: m.municipio, cveMuni: m.codigoMunicipio, lat: m.lat, lng: m.lng, nivel: m.nivel, delitos: m.incidentes, tendencia: m.tendencia })),
     [mapaData],
   );
+  // Ranking real: mismos 125 municipios del mapa, ordenados por incidencia real.
+  const ranking = useMemo(() => [...municipiosReal].sort((a, b) => b.delitos - a.delitos), [municipiosReal]);
+
+  // Selecciona el municipio de mayor incidencia por default en cuanto carga el ranking real.
+  useEffect(() => {
+    if (!selectedNombre && ranking.length > 0) setSelectedNombre(ranking[0].nombre);
+  }, [ranking, selectedNombre]);
+
+  const selectedMunicipio = ranking.find((m) => m.nombre === selectedNombre);
+
+  // Perfil delictivo real del municipio seleccionado — mismo endpoint que PrediccionesTab.
+  const { data: analisis, isLoading: loadingAnalisis } = trpc.predicciones.analizarRiesgo.useQuery(
+    { municipio: selectedNombre, meses: 3 },
+    { enabled: !!selectedNombre }
+  );
+  const desglose = analisis?.data?.desglose ?? [];
+  const totalDesglose = desglose.reduce((sum, d) => sum + Math.max(0, d.promedioPredictivo), 0);
 
   const tendIcon = (t: number) => {
     if (t > 2) return <TrendingUp size={11} style={{ color: "var(--px-crit)" }} />;
@@ -49,12 +58,14 @@ export default function ZonasTab() {
     return <Minus size={11} style={{ color: "var(--px-warn)" }} />;
   };
 
-  const selectMuni = (mun: typeof MUNICIPIOS_ALTO_RIESGO[0]) => {
-    setSelectedMunicipio(mun);
+  const selectMuni = (mun: TacticalMunicipio) => {
+    setSelectedNombre(mun.nombre);
     setFocus({ lat: mun.lat, lng: mun.lng, zoom: 11, key: Date.now() });
   };
 
-  const sidebarContent = (
+  const sidebarContent = !selectedMunicipio ? (
+    <EmptyState text="Cargando municipios…" />
+  ) : (
     <>
       {/* Tabs: Ranking / Perfil */}
       <div className="flex" style={{ borderBottom: "1px solid var(--px-hairline)", flexShrink: 0 }}>
@@ -73,13 +84,14 @@ export default function ZonasTab() {
         ))}
       </div>
 
-      {/* Tab: Ranking — lista completa */}
+      {/* Tab: Ranking — lista completa (125 municipios reales) */}
       {sideTab === "ranking" && (
         <div className="flex-1 overflow-y-auto scrollbar-tactical">
-          {MUNICIPIOS_ALTO_RIESGO.map((mun, idx) => {
+          {ranking.map((mun, idx) => {
             const isSel = selectedMunicipio.nombre === mun.nombre;
             const color = nivelColor(mun.nivel);
-            const pct = Math.min(100, (mun.delitos / 5000) * 100);
+            const maxDelitos = ranking[0]?.delitos || 1;
+            const pct = Math.min(100, (mun.delitos / maxDelitos) * 100);
             return (
               <div key={mun.nombre} className="cursor-pointer transition-all"
                 style={{ padding: "var(--px-2) var(--px-3)", borderBottom: "1px solid var(--px-hairline)",
@@ -138,26 +150,34 @@ export default function ZonasTab() {
             </div>
           </div>
 
-          {/* Radar chart */}
-          <div className="px-eyebrow" style={{ marginBottom: "var(--px-1)" }}>Perfil delictivo</div>
-          <ResponsiveContainer width="100%" height={160}>
-            <RadarChart data={RADAR_DATA}>
-              <PolarGrid stroke="var(--px-hairline)" />
-              <PolarAngleAxis dataKey="tipo" tick={{ fill: "var(--px-text-faint)", fontSize: 8, fontFamily: "var(--px-mono)" }} />
-              <Radar dataKey="valor" stroke="var(--px-brand)" fill="var(--px-brand)" fillOpacity={0.12} strokeWidth={1.5} />
-              <Tooltip contentStyle={{ background: "var(--px-surface)", border: "1px solid var(--px-hairline)", borderRadius: "var(--px-r-sm)", fontFamily: "var(--px-mono)", fontSize: "var(--px-text-xs)", color: "var(--px-text)" }} />
-            </RadarChart>
-          </ResponsiveContainer>
+          {/* Radar chart — perfil delictivo real (predicciones.analizarRiesgo) */}
+          <div className="px-eyebrow" style={{ marginBottom: "var(--px-1)" }}>Perfil delictivo (predicción a 3 meses)</div>
+          {desglose.length === 0 ? (
+            <EmptyState text={loadingAnalisis ? "Cargando perfil…" : "Sin desglose por tipo de delito para este municipio."} />
+          ) : (
+            <ResponsiveContainer width="100%" height={160}>
+              <RadarChart data={desglose.map(d => ({ tipo: TIPO_DELITO_LABELS[d.tipo] || d.tipo, valor: Math.max(0, d.promedioPredictivo) }))}>
+                <PolarGrid stroke="var(--px-hairline)" />
+                <PolarAngleAxis dataKey="tipo" tick={{ fill: "var(--px-text-faint)", fontSize: 8, fontFamily: "var(--px-mono)" }} />
+                <Radar dataKey="valor" stroke="var(--px-brand)" fill="var(--px-brand)" fillOpacity={0.12} strokeWidth={1.5} />
+                <Tooltip contentStyle={{ background: "var(--px-surface)", border: "1px solid var(--px-hairline)", borderRadius: "var(--px-r-sm)", fontFamily: "var(--px-mono)", fontSize: "var(--px-text-xs)", color: "var(--px-text)" }} />
+              </RadarChart>
+            </ResponsiveContainer>
+          )}
 
-          {/* Distribución */}
-          <div className="px-eyebrow" style={{ marginTop: "var(--px-3)", marginBottom: "var(--px-1)" }}>Distribución</div>
-          <div className="flex gap-1 flex-wrap">
-            {TIPOS_DELITO.map(d => (
-              <span key={d.nombre} style={{ fontFamily: "var(--px-mono)", fontSize: "var(--px-text-xs)", color: d.color, background: `color-mix(in srgb, ${d.color} 12%, transparent)`, padding: "2px 6px", borderRadius: 999 }}>
-                {d.nombre} {d.valor}%
-              </span>
-            ))}
-          </div>
+          {/* Distribución — mismo desglose real, como % del total predicho */}
+          {desglose.length > 0 && (
+            <>
+              <div className="px-eyebrow" style={{ marginTop: "var(--px-3)", marginBottom: "var(--px-1)" }}>Distribución</div>
+              <div className="flex gap-1 flex-wrap">
+                {desglose.map(d => (
+                  <span key={d.tipo} style={{ fontFamily: "var(--px-mono)", fontSize: "var(--px-text-xs)", color: "var(--px-brand)", background: "color-mix(in srgb, var(--px-brand) 12%, transparent)", padding: "2px 6px", borderRadius: 999 }}>
+                    {TIPO_DELITO_LABELS[d.tipo] || d.tipo} {totalDesglose > 0 ? Math.round((Math.max(0, d.promedioPredictivo) / totalDesglose) * 100) : 0}%
+                  </span>
+                ))}
+              </div>
+            </>
+          )}
         </div>
       )}
     </>
@@ -210,7 +230,7 @@ export default function ZonasTab() {
         <div className="px-card flex-1 overflow-hidden relative" style={{ minHeight: 0 }}>
           <TacticalMap className="w-full h-full" center={[19.4326, -99.1332]} zoom={9}
             municipios={municipiosReal} layers={{ heatmap: showHeatmap, zonaCircles: showCircles }} focus={focus}
-            onSelectMunicipio={(nombre) => { const m = MUNICIPIOS_ALTO_RIESGO.find(x => x.nombre === nombre); if (m) selectMuni(m); }} />
+            onSelectMunicipio={(nombre) => { const m = ranking.find(x => x.nombre === nombre); if (m) selectMuni(m); }} />
         </div>
         {/* Sidebar ranking + radar */}
         <div className="px-card flex flex-col w-72 lg:w-80 shrink-0 overflow-hidden">
@@ -228,11 +248,11 @@ export default function ZonasTab() {
         <div className="px-card flex-1 overflow-hidden" style={{ minHeight: 200 }}>
           <TacticalMap className="w-full h-full" center={[19.4326, -99.1332]} zoom={9}
             municipios={municipiosReal} layers={{ heatmap: showHeatmap, zonaCircles: showCircles }} focus={focus}
-            onSelectMunicipio={(nombre) => { const m = MUNICIPIOS_ALTO_RIESGO.find(x => x.nombre === nombre); if (m) { selectMuni(m); setShowPanel(true); } }} />
+            onSelectMunicipio={(nombre) => { const m = ranking.find(x => x.nombre === nombre); if (m) { selectMuni(m); setShowPanel(true); } }} />
         </div>
 
         {/* Floating bar — fuera del overflow-hidden del mapa */}
-        {!showPanel && (
+        {!showPanel && selectedMunicipio && (
           <div className="px-card flex items-center gap-2" style={{ padding: "var(--px-2) var(--px-3)", marginTop: "var(--px-2)", flexShrink: 0 }}>
             <span style={{ width: 8, height: 8, borderRadius: 999, background: nivelColor(selectedMunicipio.nivel), flexShrink: 0 }} />
             <span className="truncate" style={{ fontFamily: "var(--px-body)", fontSize: "var(--px-text-sm)", fontWeight: 600, color: "var(--px-text)", flex: 1 }}>{selectedMunicipio.nombre}</span>

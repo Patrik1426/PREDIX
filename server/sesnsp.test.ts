@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { getDb } from "./config/db";
 import { incidenciaDelictiva } from "../drizzle/schema";
-import { getIncidenciaByMunicipio, getIncidenciaEstatal, syncSesnspData } from "./data/sesnsp";
+import { getIncidenciaByMunicipio, getIncidenciaEstatal } from "./data/sesnsp";
 import { eq } from "drizzle-orm";
 
 describe("SESNSP Service", () => {
@@ -9,30 +9,6 @@ describe("SESNSP Service", () => {
 
   beforeAll(async () => {
     db = await getDb();
-  });
-
-  describe("syncSesnspData", () => {
-    it("should sync data without errors", async () => {
-      // This test verifies the sync function runs without throwing
-      await expect(syncSesnspData()).resolves.not.toThrow();
-    });
-
-    it("should populate database with records", async () => {
-      if (!db) {
-        console.warn("Database not available, skipping test");
-        return;
-      }
-
-      // Clear existing data
-      await db.delete(incidenciaDelictiva);
-
-      // Run sync
-      await syncSesnspData();
-
-      // Verify data was inserted
-      const records = await db.select().from(incidenciaDelictiva);
-      expect(records.length).toBeGreaterThan(0);
-    });
   });
 
   describe("getIncidenciaByMunicipio", () => {

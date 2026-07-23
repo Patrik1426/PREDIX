@@ -28,6 +28,10 @@ vi.mock("@/lib/trpc", () => ({
 
 // UserPanel usa useIsMobile (window.matchMedia) — jsdom no lo implementa.
 beforeEach(() => {
+  // Reset explícito: cada test fija su propio estado como primera línea, pero
+  // sin esto un test futuro que haga un await antes de fijarlo heredaría en
+  // silencio el valor que dejó el test anterior.
+  mockModulesRef.current = { data: undefined, isLoading: true };
   Object.defineProperty(window, "matchMedia", {
     writable: true,
     value: vi.fn().mockImplementation((query: string) => ({

@@ -107,20 +107,6 @@ export function useIncidenciaMapa() {
 }
 
 /**
- * Hook para sincronizar datos manualmente
- */
-export function useSyncIncidencia() {
-  const mutation = trpc.incidencia.syncNow.useMutation();
-
-  return {
-    sync: () => mutation.mutate(),
-    isLoading: mutation.isPending,
-    error: mutation.error?.message,
-    success: mutation.data?.success,
-  };
-}
-
-/**
  * Hook para procesar datos de incidencia en formatos útiles
  */
 export function useProcessedIncidenciaData(data: IncidenciaRecord[]) {

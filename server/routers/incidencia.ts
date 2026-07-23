@@ -5,13 +5,13 @@
 
 import { z } from "zod";
 import { publicProcedure, protectedProcedure, requirePermission, router } from "../_core/infra/trpc";
-import { getIncidenciaByMunicipio, getIncidenciaEstatal, getIncidenciaMapa, getIncidenciaOrigen, syncSesnspData } from "../data/sesnsp";
+import { getIncidenciaByMunicipio, getIncidenciaEstatal, getIncidenciaMapa, getIncidenciaOrigen } from "../data/sesnsp";
 import { addIncidentAttachment, getIncidentAttachments, deleteIncidentAttachment, getDb } from "../config/db";
 import { storagePut, storageDelete } from "../config/storage";
 import { MODULES } from "../_core/infra/permissions";
 import { logAudit } from "../config/auditLog";
-import { sesnspSyncLog, incidenciaDelito } from "../../drizzle/schema";
-import { desc, sql, count } from "drizzle-orm";
+import { incidenciaDelito } from "../../drizzle/schema";
+import { sql, count } from "drizzle-orm";
 
 export const incidenciaRouter = router({
   /**
@@ -46,20 +46,6 @@ export const incidenciaRouter = router({
     .query(async ({ input }) => {
       return await getIncidenciaEstatal(input.anio, input.mes);
     }),
-
-  /**
-   * Trigger manual sync of SESNSP data
-   * (Protected endpoint for admin use)
-   */
-  syncNow: protectedProcedure.mutation(async () => {
-    try {
-      await syncSesnspData();
-      return { success: true, message: "Sync completed" };
-    } catch (error) {
-      const errorMsg = error instanceof Error ? error.message : "Unknown error";
-      return { success: false, message: errorMsg };
-    }
-  }),
 
   /**
    * Export incidencia data as CSV with filters
@@ -289,7 +275,11 @@ export const incidenciaRouter = router({
   }),
 
   /**
-   * Estado real del pipeline de sincronización SESNSP (último sync + filas cargadas).
+   * Estado real del pipeline de sincronización SESNSP (filas cargadas en la
+   * tabla granular real). No hay timestamp de "último sync" que mostrar: la
+   * carga real es manual vía `scripts/load-sesnsp.ts` (ver CLAUDE.md Issue #2)
+   * y no queda registrada en ninguna tabla — `ultimoSync`/`statusUltimoSync`
+   * quedan siempre en null a propósito, en vez de mostrar un dato inventado.
    * Para el conector "SESNSP" en el módulo de Integración.
    */
   syncStatus: publicProcedure.query(async () => {
@@ -298,13 +288,12 @@ export const incidenciaRouter = router({
       return { conectado: false, ultimoSync: null, filasCargadas: 0, statusUltimoSync: null, origen: "sin_bd" as const };
     }
     try {
-      const [ultimoLog] = await db.select().from(sesnspSyncLog).orderBy(desc(sesnspSyncLog.lastSyncTime)).limit(1);
       const [{ total }] = await db.select({ total: count() }).from(incidenciaDelito);
       return {
         conectado: total > 0,
-        ultimoSync: ultimoLog?.lastSyncTime ?? null,
+        ultimoSync: null,
         filasCargadas: total,
-        statusUltimoSync: ultimoLog?.status ?? null,
+        statusUltimoSync: null,
         origen: "real" as const,
       };
     } catch (e) {

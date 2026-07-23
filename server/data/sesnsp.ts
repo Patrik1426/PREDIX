@@ -1,26 +1,17 @@
 /**
  * SESNSP Data Integration Service
- * Fetches crime statistics from SESNSP and stores them in database
- * Uses CKAN API from datos.gob.mx as primary source
+ * Los datos reales se cargan offline vía `scripts/load-sesnsp.ts` (CSV oficial,
+ * MySQL local_infile) a la tabla granular `incidencia_delito` — ver Issue #2 en
+ * CLAUDE.md. Este archivo solo LEE esa tabla (queryRealIncidencia) y sirve un
+ * fallback simulado (generateMockSesnspData/getMockIncidenciaTable) cuando no
+ * hay BD o la tabla está vacía. No escribe nada por sí mismo.
  */
 
-import axios from "axios";
 import { eq, and, gte, sql } from "drizzle-orm";
 import { getDb } from "../config/db";
-import {
-  incidenciaDelictiva,
-  incidenciaDelito,
-  incidenciaVictima,
-  sesnspSyncLog,
-  InsertIncidenciaDelictiva,
-  IncidenciaDelictiva,
-} from "../../drizzle/schema";
+import { incidenciaDelito, incidenciaVictima, IncidenciaDelictiva } from "../../drizzle/schema";
 import { logger } from "../_core/logger";
 import { EDOMEX_CENTROIDES, CENTROIDE_POR_CVE } from "./edomexCentroids";
-
-// CKAN API endpoints
-const CKAN_API_BASE = "https://www.datos.gob.mx/api/3/action";
-const SESNSP_DATASET_ID = "incidencia-delictiva-del-fuero-comun";
 
 // SESNSP data structure mapping
 interface SesnspRecord {
@@ -37,43 +28,6 @@ interface SesnspRecord {
   otrosDelitos?: number;
   victimas?: number;
   fuero?: string;
-}
-
-/**
- * Fetch dataset metadata from CKAN API
- */
-async function getDatasetResources() {
-  try {
-    const response = await axios.get(`${CKAN_API_BASE}/package_show`, {
-      params: { id: SESNSP_DATASET_ID },
-      timeout: 10000,
-    });
-
-    if (!response.data.success) {
-      throw new Error("CKAN API returned success: false");
-    }
-
-    return response.data.result.resources;
-  } catch (error) {
-    logger.error("[SESNSP] Error fetching dataset resources:", error);
-    return [];
-  }
-}
-
-/**
- * Download and parse CSV data from SESNSP
- * For now, returns mock data since direct CSV parsing requires additional setup
- */
-async function fetchSesnspData(): Promise<SesnspRecord[]> {
-  try {
-    // In production, this would fetch from CKAN API
-    // For now, we'll use mock data that matches SESNSP structure
-    const mockData = generateMockSesnspData();
-    return mockData;
-  } catch (error) {
-    logger.error("[SESNSP] Error fetching SESNSP data:", error);
-    return [];
-  }
 }
 
 /**
@@ -449,132 +403,6 @@ export async function getIncidenciaMapa(): Promise<MapaMunicipio[]> {
   } catch (error) {
     logger.error("[SESNSP] Error building mapa data:", error);
     return [];
-  }
-}
-
-/**
- * Insert or update SESNSP records in database
- */
-async function storeSesnspData(records: SesnspRecord[]): Promise<number> {
-  const db = await getDb();
-  if (!db) {
-    logger.warn("[SESNSP] Database not available");
-    return 0;
-  }
-
-  let processedCount = 0;
-
-  try {
-    for (const record of records) {
-      // Check if record already exists
-      const existing = await db
-        .select()
-        .from(incidenciaDelictiva)
-        .where(
-          and(
-            eq(incidenciaDelictiva.municipio, record.municipio),
-            eq(incidenciaDelictiva.anio, record.anio),
-            eq(incidenciaDelictiva.mes, record.mes)
-          )
-        )
-        .limit(1);
-
-      if (existing.length > 0) {
-        // Update existing record
-        await db
-          .update(incidenciaDelictiva)
-          .set({
-            homicidios: record.homicidios || 0,
-            robos: record.robos || 0,
-            lesiones: record.lesiones || 0,
-            violenciaSexual: record.violenciaSexual || 0,
-            traficoDeDropgas: record.traficoDeDropgas || 0,
-            otrosDelitos: record.otrosDelitos || 0,
-            victimas: record.victimas || 0,
-          })
-          .where(
-            and(
-              eq(incidenciaDelictiva.municipio, record.municipio),
-              eq(incidenciaDelictiva.anio, record.anio),
-              eq(incidenciaDelictiva.mes, record.mes)
-            )
-          );
-      } else {
-        // Insert new record
-        await db.insert(incidenciaDelictiva).values({
-          estado: record.estado,
-          municipio: record.municipio,
-          codigoMunicipio: record.codigoMunicipio,
-          anio: record.anio,
-          mes: record.mes,
-          homicidios: record.homicidios || 0,
-          robos: record.robos || 0,
-          lesiones: record.lesiones || 0,
-          violenciaSexual: record.violenciaSexual || 0,
-          traficoDeDropgas: record.traficoDeDropgas || 0,
-          otrosDelitos: record.otrosDelitos || 0,
-          victimas: record.victimas || 0,
-          fuero: record.fuero || "comun",
-        });
-      }
-
-      processedCount++;
-    }
-
-    logger.info(`[SESNSP] Successfully processed ${processedCount} records`);
-    return processedCount;
-  } catch (error) {
-    logger.error("[SESNSP] Error storing data:", error);
-    throw error;
-  }
-}
-
-/**
- * Log sync operation
- */
-async function logSyncOperation(
-  recordsProcessed: number,
-  status: "success" | "error",
-  errorMessage?: string
-) {
-  const db = await getDb();
-  if (!db) return;
-
-  try {
-    await db.insert(sesnspSyncLog).values({
-      lastSyncTime: new Date(),
-      recordsProcessed,
-      status,
-      errorMessage,
-      nextSyncTime: new Date(Date.now() + 24 * 60 * 60 * 1000), // 24 hours from now
-    });
-  } catch (error) {
-    logger.error("[SESNSP] Error logging sync:", error);
-  }
-}
-
-/**
- * Main sync function - called periodically
- */
-export async function syncSesnspData() {
-  logger.info("[SESNSP] Starting data sync...");
-
-  try {
-    const data = await fetchSesnspData();
-    if (data.length === 0) {
-      logger.warn("[SESNSP] No data fetched from SESNSP");
-      await logSyncOperation(0, "error", "No data fetched");
-      return;
-    }
-
-    const processedCount = await storeSesnspData(data);
-    await logSyncOperation(processedCount, "success");
-
-    logger.info(`[SESNSP] Sync completed successfully. Processed ${processedCount} records.`);
-  } catch (error) {
-    const errorMsg = error instanceof Error ? error.message : "Unknown error";
-    logger.error("[SESNSP] Sync failed:", errorMsg);
-    await logSyncOperation(0, "error", errorMsg);
   }
 }
 

@@ -9,7 +9,6 @@ import { createExpressMiddleware } from "@trpc/server/adapters/express";
 import { appRouter } from "../routers";
 import { createContext } from "./auth/context";
 import { serveStatic, setupVite } from "./infra/vite";
-import { startSyncScheduler } from "../services/syncScheduler";
 import { sseHandler, eventBus } from "../services/realtimeService";
 import { sdk } from "./sdk";
 import { resolveAttachmentPath } from "../config/storage";
@@ -198,8 +197,6 @@ async function startServer() {
 
   server.listen(port, () => {
     console.log(`Server running on http://localhost:${port}/`);
-    // Start SESNSP data sync scheduler
-    startSyncScheduler();
   });
 }
 

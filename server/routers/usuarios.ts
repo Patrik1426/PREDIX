@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { protectedProcedure, router } from "../_core/infra/trpc";
+import { requirePermission, router } from "../_core/infra/trpc";
 import { getDb } from "../config/db";
 import { users } from "../../drizzle/schema";
 import { eq } from "drizzle-orm";
@@ -7,11 +7,12 @@ import { logger } from "../_core/logger";
 import { toPublicUser } from "../_core/auth/sanitizeUser";
 import { hashPassword } from "../_core/auth/password";
 import { logAudit } from "../config/auditLog";
+import { MODULES } from "../_core/infra/permissions";
 
 const institutionalRoleSchema = z.enum(["operador", "supervisor", "analista", "admin", "consulta", "policia", "comandante"]);
 
 export const usuariosRouter = router({
-  listar: protectedProcedure.query(async () => {
+  listar: requirePermission(MODULES.ADMIN, "canView").query(async () => {
     const db = await getDb();
     if (!db) return { data: [], origen: "sin_bd" as const };
     try {
@@ -23,7 +24,7 @@ export const usuariosRouter = router({
     }
   }),
 
-  crear: protectedProcedure
+  crear: requirePermission(MODULES.ADMIN, "canEdit")
     .input(z.object({
       name: z.string().min(1),
       email: z.string().email(),
@@ -61,7 +62,7 @@ export const usuariosRouter = router({
       return { success: true, id: result[0].insertId };
     }),
 
-  actualizar: protectedProcedure
+  actualizar: requirePermission(MODULES.ADMIN, "canEdit")
     .input(z.object({
       id: z.number(),
       name: z.string().optional(),
@@ -84,7 +85,7 @@ export const usuariosRouter = router({
       return { success: true };
     }),
 
-  resetPassword: protectedProcedure
+  resetPassword: requirePermission(MODULES.ADMIN, "canEdit")
     .input(z.object({
       id: z.number(),
       password: z.string().min(8),
@@ -104,7 +105,7 @@ export const usuariosRouter = router({
       return { success: true };
     }),
 
-  eliminar: protectedProcedure
+  eliminar: requirePermission(MODULES.ADMIN, "canDelete")
     .input(z.object({ id: z.number() }))
     .mutation(async ({ input, ctx }) => {
       const db = await getDb();

@@ -220,7 +220,7 @@ export default function AdminTab() {
   // excepción — cada llamada debe revisar ese campo antes de mostrar éxito.
   const onUsuarioMutError = (e: unknown) => {
     const code = e instanceof TRPCClientError ? e.data?.code : undefined;
-    toast.error(code === "UNAUTHORIZED" ? "Requiere sesión iniciada" : "No se pudo completar la acción");
+    toast.error(code === "UNAUTHORIZED" ? "Requiere sesión iniciada" : code === "FORBIDDEN" ? "Tu rol no tiene permiso para esta acción" : "No se pudo completar la acción");
   };
   const okOrUsuario = (data: { success: boolean }, onOk: () => void) => {
     refetchUsers();
@@ -230,7 +230,7 @@ export default function AdminTab() {
   const crearUsuarioMut = trpc.usuarios.crear.useMutation({ onError: onUsuarioMutError });
   const actualizarUsuarioMut = trpc.usuarios.actualizar.useMutation({ onError: onUsuarioMutError });
   const eliminarUsuarioMut = trpc.usuarios.eliminar.useMutation({ onError: onUsuarioMutError });
-  const resetPasswordMut = trpc.usuarios.resetPassword.useMutation({ onSuccess: () => refetchUsers() });
+  const resetPasswordMut = trpc.usuarios.resetPassword.useMutation({ onSuccess: () => refetchUsers(), onError: onUsuarioMutError });
 
   // BD: matriz de permisos por rol real (role_permissions, con fallback a
   // DEFAULT_PERMISSIONS si la tabla no está sembrada) — la misma fuente que

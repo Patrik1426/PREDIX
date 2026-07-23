@@ -6,6 +6,7 @@
  */
 
 import { describe, expect, it } from "vitest";
+import { TRPCError } from "@trpc/server";
 import { appRouter } from "../routers";
 import type { TrpcContext } from "../_core/auth/context";
 
@@ -24,14 +25,46 @@ const AUTH_USER: AuthenticatedUser = {
   lastSignedIn: new Date(),
 };
 
-function createAuthCaller() {
-  const ctx: TrpcContext = {
-    user: AUTH_USER,
+function createContext(user: AuthenticatedUser): TrpcContext {
+  return {
+    user,
     req: { protocol: "https", headers: {} } as TrpcContext["req"],
     res: {} as TrpcContext["res"],
   };
-  return appRouter.createCaller(ctx);
 }
+
+function createAuthCaller() {
+  return appRouter.createCaller(createContext(AUTH_USER));
+}
+
+// Gestión de usuarios ahora exige requirePermission(ADMIN, ...) — antes solo
+// pedía sesión (protectedProcedure), cualquier rol autenticado podía crear/
+// editar/borrar otros usuarios. Ver CLAUDE.md.
+describe("usuarios.* — RBAC real (solo rol admin gestiona usuarios)", () => {
+  const nonAdminCaller = appRouter.createCaller(createContext({ ...AUTH_USER, institutionalRole: "consulta" }));
+
+  it("listar rechaza con FORBIDDEN a un rol sin permiso de admin (ej. consulta)", async () => {
+    await expect(nonAdminCaller.usuarios.listar()).rejects.toMatchObject({ code: "FORBIDDEN" } satisfies Partial<TRPCError>);
+  });
+
+  it("crear rechaza con FORBIDDEN a un rol sin permiso de admin", async () => {
+    await expect(
+      nonAdminCaller.usuarios.crear({ name: "x", email: "x@x.com", institutionalRole: "operador", password: "Password123" })
+    ).rejects.toMatchObject({ code: "FORBIDDEN" } satisfies Partial<TRPCError>);
+  });
+
+  it("actualizar rechaza con FORBIDDEN a un rol sin permiso de admin", async () => {
+    await expect(nonAdminCaller.usuarios.actualizar({ id: 1, name: "x" })).rejects.toMatchObject({
+      code: "FORBIDDEN",
+    } satisfies Partial<TRPCError>);
+  });
+
+  it("eliminar rechaza con FORBIDDEN a un rol sin permiso de admin", async () => {
+    await expect(nonAdminCaller.usuarios.eliminar({ id: 1 })).rejects.toMatchObject({
+      code: "FORBIDDEN",
+    } satisfies Partial<TRPCError>);
+  });
+});
 
 describe("usuarios.listar", () => {
   it("responde en modo degradado con origen 'sin_bd' y data vacía", async () => {

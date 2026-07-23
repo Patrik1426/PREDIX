@@ -62,4 +62,16 @@ describe("usuarios.crear / resetPassword", () => {
 
     expect(result).toEqual({ success: false });
   });
+
+  it("resetPassword rechaza con FORBIDDEN a un rol sin permiso de admin (ej. consulta)", async () => {
+    const caller = appRouter.createCaller({
+      user: { ...AUTH_USER, institutionalRole: "consulta" },
+      req: { protocol: "https", headers: {} } as TrpcContext["req"],
+      res: {} as TrpcContext["res"],
+    });
+
+    await expect(caller.usuarios.resetPassword({ id: 1, password: "NuevaPassword123" })).rejects.toMatchObject({
+      code: "FORBIDDEN",
+    });
+  });
 });

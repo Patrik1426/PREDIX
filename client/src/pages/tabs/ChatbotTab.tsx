@@ -18,8 +18,16 @@ const QUICK_QUERIES = [
 
 const BIENVENIDA = "Bienvenido al sistema ATENEA. Soy tu asistente táctico para el Estado de México — pregúntame por alertas activas o incidencia delictiva.";
 
-function formatMd(text: string): string {
-  return text.replace(/\*\*(.*?)\*\*/g, '<strong style="color:var(--px-text)">$1</strong>').replace(/\n/g, "<br/>");
+// Escapa el texto (propio o de la respuesta del LLM, Issue #19/#20 — ninguno
+// de los dos es HTML de confianza) antes de aplicar el markdown mínimo que
+// sí queremos renderizar, o un <img onerror=...> quedaría vivo en el DOM vía
+// dangerouslySetInnerHTML (mismo patrón de bug que TacticalMap, Issue #31).
+function escHtml(s: string): string {
+  return s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]!));
+}
+
+export function formatMd(text: string): string {
+  return escHtml(text).replace(/\*\*(.*?)\*\*/g, '<strong style="color:var(--px-text)">$1</strong>').replace(/\n/g, "<br/>");
 }
 
 export default function ChatbotTab() {

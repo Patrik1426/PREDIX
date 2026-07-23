@@ -83,6 +83,14 @@ interface TacticalMapProps {
 const nivelColor = (nivel: string) =>
   nivel === "crítico" ? "#FF3B3B" : nivel === "alto" ? "#FFB800" : nivel === "medio" ? "#00D4FF" : "#00E676";
 
+// Leaflet's bindPopup/bindTooltip parsean el string como HTML — cualquier
+// valor que venga de datos reales (alertas.titulo/descripcion son texto libre
+// del formulario "Crear alerta", editable por cualquier usuario con permiso)
+// debe escaparse antes de interpolarse, o un <script>/onerror= quedaría
+// almacenado y se ejecutaría para cualquiera que abra ese popup en el mapa.
+export const escHtml = (s: string) =>
+  s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]!));
+
 // Hover: resalta el marcador (más grueso/opaco) y vuelve al salir.
 function withHover(m: L.CircleMarker, base: L.PathOptions) {
   m.on("mouseover", () => m.setStyle({ weight: (base.weight ?? 1) + 1.5, fillOpacity: 1 }));
@@ -160,13 +168,13 @@ export default function TacticalMap({
       const base: L.PathOptions = { color: "#ffffff", weight: 2, fillColor: color, fillOpacity: 0.9 };
       withHover(
         L.circleMarker([el.identification.lat, el.identification.lng], { radius: isCmd ? 9 : 6, ...base })
-          .bindTooltip(`${el.name} · ${el.identification.value} · DEMO`, { direction: "top", className: "tac-tip" })
+          .bindTooltip(`${escHtml(el.name)} · ${escHtml(el.identification.value)} · DEMO`, { direction: "top", className: "tac-tip" })
           .bindPopup(
-            `<div class="tac-pop"><div class="tac-pop-eyebrow" style="color:${color}">${el.role.toUpperCase()} · DEMO</div>
-             <div class="tac-pop-title">${el.name}</div>
-             <div class="tac-pop-row"><span>Identificación</span><b style="color:${color}">${el.identification.value}</b></div>
-             <div class="tac-pop-row"><span>Tipo rastreo</span><b>${el.identification.type.replace("_", " ").toUpperCase()}</b></div>
-             <div class="tac-pop-row"><span>Departamento</span><b>${el.department}</b></div>
+            `<div class="tac-pop"><div class="tac-pop-eyebrow" style="color:${color}">${escHtml(el.role.toUpperCase())} · DEMO</div>
+             <div class="tac-pop-title">${escHtml(el.name)}</div>
+             <div class="tac-pop-row"><span>Identificación</span><b style="color:${color}">${escHtml(el.identification.value)}</b></div>
+             <div class="tac-pop-row"><span>Tipo rastreo</span><b>${escHtml(el.identification.type.replace("_", " ").toUpperCase())}</b></div>
+             <div class="tac-pop-row"><span>Departamento</span><b>${escHtml(el.department)}</b></div>
              <div class="tac-pop-meta">${el.identification.lat.toFixed(4)}° N, ${Math.abs(el.identification.lng).toFixed(4)}° W</div></div>`
           )
           .on("click", () => cbEl.current?.(el)),
@@ -249,7 +257,7 @@ export default function TacticalMap({
         },
         onEachFeature: (feature, layer) => {
           const nombre = feature.properties?.nombre;
-          if (nombre) layer.bindTooltip(nombre, { sticky: true, className: "tac-tip" });
+          if (nombre) layer.bindTooltip(escHtml(nombre), { sticky: true, className: "tac-tip" });
         },
       }).addTo(g.limites);
     });
@@ -274,9 +282,9 @@ export default function TacticalMap({
       L.marker([al.lat, al.lng], { icon })
         .bindPopup(
           `<div class="tac-pop tac-pop-crit"><div class="tac-pop-eyebrow">⚠ ALERTA CRÍTICA — ALT-${String(al.id).padStart(3, "0")}</div>
-           <div class="tac-pop-title" style="color:#FF6B6B">${al.titulo}</div>
-           <div class="tac-pop-desc">${al.descripcion || ""}</div>
-           <div class="tac-pop-meta">${al.municipio} · ${al.hora}</div></div>`
+           <div class="tac-pop-title" style="color:#FF6B6B">${escHtml(al.titulo)}</div>
+           <div class="tac-pop-desc">${escHtml(al.descripcion || "")}</div>
+           <div class="tac-pop-meta">${escHtml(al.municipio)} · ${escHtml(al.hora)}</div></div>`
         )
         .addTo(g.alertas);
     });
@@ -317,10 +325,10 @@ export default function TacticalMap({
       const base: L.PathOptions = { color: "#ffffff", weight: 1.5, fillColor: color, fillOpacity: 0.85 };
       withHover(
         L.circleMarker([mun.lat, mun.lng], { radius: r, ...base })
-          .bindTooltip(mun.nombre, { direction: "top", className: "tac-tip" })
+          .bindTooltip(escHtml(mun.nombre), { direction: "top", className: "tac-tip" })
           .bindPopup(
-            `<div class="tac-pop"><div class="tac-pop-title" style="color:${color}">${mun.nombre}</div>
-             <div class="tac-pop-row"><span>Nivel de riesgo</span><b style="color:${color};text-transform:uppercase">${mun.nivel}</b></div>
+            `<div class="tac-pop"><div class="tac-pop-title" style="color:${color}">${escHtml(mun.nombre)}</div>
+             <div class="tac-pop-row"><span>Nivel de riesgo</span><b style="color:${color};text-transform:uppercase">${escHtml(mun.nivel)}</b></div>
              <div class="tac-pop-row"><span>Incidentes (mes)</span><b>${mun.delitos.toLocaleString()}</b></div>
              <div class="tac-pop-row"><span>Tendencia mensual</span><b style="color:${tColor}">${tIcon} ${Math.abs(mun.tendencia)}%</b></div></div>`
           )

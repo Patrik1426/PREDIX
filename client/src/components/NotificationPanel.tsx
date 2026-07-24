@@ -12,24 +12,16 @@ import {
   MapPin, BarChart3, Settings
 } from "lucide-react";
 import type { RealtimeEvent, EventType } from "@/hooks/useRealtimeEvents";
+import { HUD } from "@/lib/hudTokens";
 
-// ── Tokens sobrio-institucional ──────────────────────────────
+// ── Tokens sobrio-institucional — fuente única en @/lib/hudTokens (antes
+// duplicados letra por letra aquí y en Header.tsx). surface1/surface2 y
+// offline son específicos de este panel (fondo del diálogo / alias de crit). ──
 const T = {
+  ...HUD,
   surface1: "#0E1726",
   surface2: "#0B121F",
-  border: "rgba(255,255,255,0.08)",
-  borderSoft: "rgba(255,255,255,0.05)",
-  hover: "rgba(255,255,255,0.035)",
-  textTitle: "#E6ECF5",
-  textBody: "#AEBACB",
-  textMeta: "#6B7A92",
-  textActive: "#C6D2E3",
-  live: "#3DA35D",
-  offline: "#E5484D",
-  // Fuente sans legible para cuerpo (cae a system-ui si Inter no está cargada).
-  sans: "Inter, 'Segoe UI', system-ui, sans-serif",
-  mono: "IBM Plex Mono, monospace",
-  display: "Rajdhani, sans-serif",
+  offline: HUD.crit,
 };
 
 function getEventIcon(type: EventType) {
@@ -121,7 +113,7 @@ function eventToTab(type: EventType): string | null {
   }
 }
 
-function TimeDivider({ label }: { label: string }) {
+function TimeDivider({ label, accent }: { label: string; accent?: string }) {
   return (
     <div
       style={{
@@ -137,13 +129,14 @@ function TimeDivider({ label }: { label: string }) {
           fontSize: "0.62rem",
           letterSpacing: "0.12em",
           textTransform: "uppercase",
-          color: T.textMeta,
+          color: accent || T.textMeta,
+          fontWeight: accent ? 700 : 400,
           whiteSpace: "nowrap",
         }}
       >
         {label}
       </span>
-      <span style={{ flex: 1, height: "1px", background: T.borderSoft }} />
+      <span style={{ flex: 1, height: "1px", background: accent ? `color-mix(in srgb, ${accent} 35%, transparent)` : T.borderSoft }} />
     </div>
   );
 }
@@ -334,6 +327,24 @@ export default function NotificationPanel() {
   // Ordenar por más reciente primero
   const sortedEvents = [...filteredEvents].reverse();
 
+  // Eventos críticos sin leer se fijan arriba de todo — no dependen del
+  // filtro de tiempo, así una alerta grave no queda enterrada bajo una
+  // racha de eventos de sistema menores.
+  const priorityEvents = sortedEvents.filter((e) => e.severity === "critical" && unreadIds.has(e.id));
+  const priorityIds = new Set(priorityEvents.map((e) => e.id));
+  const restEvents = sortedEvents.filter((e) => !priorityIds.has(e.id));
+
+  // Color del badge de la campana según la severidad más alta SIN LEER (no
+  // siempre rojo) — un solo "info" sin leer no debe verse igual de urgente
+  // que un crítico sin leer.
+  const badgeSeverity: "critical" | "warning" | "info" = (() => {
+    const unread = events.filter((e) => unreadIds.has(e.id));
+    if (unread.some((e) => e.severity === "critical")) return "critical";
+    if (unread.some((e) => e.severity === "warning")) return "warning";
+    return "info";
+  })();
+  const badgeColor = badgeSeverity === "critical" ? T.crit : badgeSeverity === "warning" ? T.warn : T.brand;
+
   const filters: { id: FilterTab; label: string; count: number }[] = [
     { id: "all", label: "Todos", count: events.length },
     { id: "alertas", label: "Alertas", count: alertEvents.length },
@@ -455,7 +466,7 @@ export default function NotificationPanel() {
               position: "absolute",
               top: "-4px",
               right: "-4px",
-              background: T.offline,
+              background: badgeColor,
               color: "#fff",
               fontSize: "0.6rem",
               fontFamily: T.mono,
@@ -716,22 +727,38 @@ export default function NotificationPanel() {
                   </p>
                 </div>
               ) : (
-                sortedEvents.map(event => {
-                  const group = getTimeGroup(event.timestamp);
-                  const showDivider = group !== lastGroup;
-                  lastGroup = group;
-                  return (
-                    <Fragment key={event.id}>
-                      {showDivider && <TimeDivider label={group} />}
-                      <EventItem
-                        event={event}
-                        isUnread={unreadIds.has(event.id)}
-                        onMarkRead={markRead}
-                        onActivate={handleActivate}
-                      />
-                    </Fragment>
-                  );
-                })
+                <>
+                  {priorityEvents.length > 0 && (
+                    <>
+                      <TimeDivider label={`⚠ Prioridad · ${priorityEvents.length}`} accent={T.crit} />
+                      {priorityEvents.map(event => (
+                        <EventItem
+                          key={event.id}
+                          event={event}
+                          isUnread={true}
+                          onMarkRead={markRead}
+                          onActivate={handleActivate}
+                        />
+                      ))}
+                    </>
+                  )}
+                  {restEvents.map(event => {
+                    const group = getTimeGroup(event.timestamp);
+                    const showDivider = group !== lastGroup;
+                    lastGroup = group;
+                    return (
+                      <Fragment key={event.id}>
+                        {showDivider && <TimeDivider label={group} />}
+                        <EventItem
+                          event={event}
+                          isUnread={unreadIds.has(event.id)}
+                          onMarkRead={markRead}
+                          onActivate={handleActivate}
+                        />
+                      </Fragment>
+                    );
+                  })}
+                </>
               )}
               </div>
             </div>

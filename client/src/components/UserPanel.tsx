@@ -1,22 +1,22 @@
 /**
  * UserPanel — Credencial de identidad táctica.
- * Vista "cred": identidad + niveles de acceso (read-only) + logout.
+ * Vista "cred": identidad + logout.
  * Vista "cuenta": contacto editable (local), seguridad read-only con candado
- * (rol/accesos los gestiona el administrador) y datos de sesión/auditoría.
+ * (rol lo gestiona el administrador) y datos de sesión/auditoría.
  *
- * El rol y los niveles NO se editan aquí: en gobierno los asigna el admin.
- * Los niveles de acceso vienen de auth.getAccessibleModules (RBAC real).
+ * El rol NO se edita aquí: en gobierno lo asigna el admin. No se muestran los
+ * niveles de acceso por módulo — cada usuario ya conoce su propio alcance;
+ * mostrarlo aquí era redundante (decisión explícita, ver CLAUDE.md).
  */
 
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { toast } from "sonner";
 import {
-  X, LogOut, AlertTriangle, Loader2, Check, Ban,
+  X, LogOut, AlertTriangle, Loader2,
   Settings, ChevronLeft, Lock, Phone, Save, Send, Clock, MonitorSmartphone,
 } from "lucide-react";
-import { NAV_GROUPS } from "./navConfig";
-import { useAccessibleModules } from "@/hooks/useModuleAccess";
+import { ROLE_LABEL_TO_SLUG, ROLE_COLORS } from "@/lib/institutionalRoles";
 
 const CONTACT_KEY = "predix:contact";
 
@@ -67,7 +67,6 @@ interface UserPanelProps {
 }
 
 export default function UserPanel({ user, onClose, onLogout }: UserPanelProps) {
-  const { modules, isLoading: modulesLoading } = useAccessibleModules();
   const isMobile = useIsMobile();
   const [view, setView] = useState<"cred" | "cuenta">("cred");
   const [isLoggingOut, setIsLoggingOut] = useState(false);
@@ -97,16 +96,11 @@ export default function UserPanel({ user, onClose, onLogout }: UserPanelProps) {
   const roleLabel = user.rol;
   const employeeId = user.employeeId || "—";
   const email = user.correo;
-
-  // Niveles de acceso reales: grupos de navegación cuyo módulo RBAC (si tiene)
-  // está en auth.getAccessibleModules del usuario autenticado. Mientras carga,
-  // se marca "verificando" en vez de "restringido" — evita el parpacheo de
-  // mostrar restringido y luego corregir a habilitado para un admin real.
-  const clearances = NAV_GROUPS.map((g) => ({
-    label: g.label,
-    enabled: !g.requireModule || modules.includes(g.requireModule),
-    loading: !!g.requireModule && modulesLoading,
-  }));
+  // Color por rol institucional (mismo mapeo que las tablas de Admin y los
+  // marcadores del mapa) — tiñe el anillo del avatar y el chip de rango, para
+  // que la credencial delate el rango de un vistazo, consistente en toda la app.
+  const roleSlug = ROLE_LABEL_TO_SLUG[roleLabel];
+  const roleColor = (roleSlug && ROLE_COLORS[roleSlug]) || "var(--px-brand)";
 
   const initials = user.nombre
     .split(" ")
@@ -139,8 +133,10 @@ export default function UserPanel({ user, onClose, onLogout }: UserPanelProps) {
         </button>
       </div>
 
-      {/* Identidad */}
-      <div className="px-cred-id">
+      {/* Identidad — franja de escaneo táctico, tinte por rol */}
+      <div className="px-cred-id" style={{ "--role-color": roleColor } as React.CSSProperties}>
+        <div className="px-cred-id-grid" aria-hidden />
+        <div className="px-cred-id-sweep" aria-hidden />
         <div className="px-cred-mono" aria-hidden>
           {initials}
         </div>
@@ -175,32 +171,6 @@ export default function UserPanel({ user, onClose, onLogout }: UserPanelProps) {
             <dd>{user.ultimaConexion}</dd>
           </div>
         </dl>
-      </div>
-
-      {/* Niveles de acceso — la firma */}
-      <div className="px-cred-section">
-        <div className="px-cred-section-label">// Niveles de acceso</div>
-        <ul className="px-cred-clear">
-          {clearances.map((c) => (
-            <li key={c.label} className={`px-cred-clear-row ${c.loading ? "" : c.enabled ? "ok" : "no"}`}>
-              <span className="bar" aria-hidden />
-              <span className="name">{c.label}</span>
-              <span className="state">
-                {c.loading ? (
-                  "verificando…"
-                ) : c.enabled ? (
-                  <>
-                    <Check size={12} /> habilitado
-                  </>
-                ) : (
-                  <>
-                    <Ban size={12} /> restringido
-                  </>
-                )}
-              </span>
-            </li>
-          ))}
-        </ul>
       </div>
 
       {/* Footer: ir a Cuenta + Logout */}
@@ -300,15 +270,6 @@ export default function UserPanel({ user, onClose, onLogout }: UserPanelProps) {
           <div className="px-cred-row">
             <dt>Rol</dt>
             <dd className="px-cred-locked"><Lock size={10} /> {roleLabel}</dd>
-          </div>
-          <div className="px-cred-row">
-            <dt>Niveles habilitados</dt>
-            <dd className="px-cred-locked">
-              <Lock size={10} />{" "}
-              {clearances.some((c) => c.loading)
-                ? "verificando…"
-                : clearances.filter((c) => c.enabled).map((c) => c.label).join(" · ")}
-            </dd>
           </div>
           <div className="px-cred-row">
             <dt>Área</dt>

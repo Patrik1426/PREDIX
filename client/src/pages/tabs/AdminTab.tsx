@@ -17,7 +17,7 @@ import { toast } from "sonner";
 import { ModuleHeader, OriginBadge } from "@/components/dashboard";
 import { trpc } from "@/lib/trpc";
 import { TRPCClientError } from "@trpc/client";
-import { INSTITUTIONAL_ROLE_LABELS as ROLE_SLUG_TO_LABEL, ROLE_LABEL_TO_SLUG } from "@/lib/institutionalRoles";
+import { INSTITUTIONAL_ROLE_LABELS as ROLE_SLUG_TO_LABEL, ROLE_LABEL_TO_SLUG, ROLE_COLORS } from "@/lib/institutionalRoles";
 
 /* ─── Types ─── */
 interface User {
@@ -107,11 +107,6 @@ const DEMO_AUDIT_LOGS: AuditLog[] = [
   { id: 11, timestamp: "17/04/2026 18:15:00", user: "Sistema", action: "AUTO_BACKUP", module: "Sistema", detail: "Respaldo automático de base de datos completado", ip: "127.0.0.1", status: "success" },
   { id: 12, timestamp: "17/04/2026 17:58:30", user: "Lic. Miguel Ángel Reyes", action: "VIEW_REPORT", module: "Tablero", detail: "Consulta de estadísticas mensuales", ip: "10.0.4.22", status: "success" },
 ];
-
-const ROLE_COLORS: Record<string, string> = {
-  admin: "#FF3B3B", supervisor: "#FFB800", analista: "#00D4FF", operador: "#00FF88",
-  consulta: "var(--px-text-muted)", policia: "#4FC3F7", comandante: "#AB47BC",
-};
 
 /**
  * Los 8 módulos reales sobre los que se hace cumplir RBAC server-side

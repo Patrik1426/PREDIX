@@ -11,23 +11,13 @@ import UserPanel, { type UserProfile } from "./UserPanel";
 import NotificationPanel from "./NotificationPanel";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { trpc } from "@/lib/trpc";
-import { INSTITUTIONAL_ROLE_LABELS } from "@/lib/institutionalRoles";
+import { INSTITUTIONAL_ROLE_LABELS, ROLE_LABEL_TO_SLUG, ROLE_COLORS } from "@/lib/institutionalRoles";
+import { HUD } from "@/lib/hudTokens";
 
-// Tokens sobrio-institucional (alineados al NotificationPanel).
+// Tokens sobrio-institucional — fuente única en @/lib/hudTokens (antes
+// duplicados letra por letra aquí y en NotificationPanel.tsx).
 // Cian = solo acento de marca puntual; el color lo carga la severidad/estado.
-const HX = {
-  textTitle: "#E6ECF5",
-  textBody: "#AEBACB",
-  textMeta: "#6B7A92",
-  border: "rgba(255,255,255,0.1)",
-  borderSoft: "rgba(255,255,255,0.08)",
-  brand: "#00D4FF",
-  live: "#3DA35D",
-  warn: "#E5A23D",
-  crit: "#E5484D",
-  mono: "IBM Plex Mono, monospace",
-  display: "Rajdhani, sans-serif",
-};
+const HX = HUD;
 
 // Chip que ancla cada KPI (cuadro redondeado tintado por semántica).
 function chip(bg: string, border: string): React.CSSProperties {
@@ -104,6 +94,11 @@ export default function Header() {
         estado: "inactivo",
         cargo: "—",
       };
+
+  // Mismo color por rol que usa la credencial (UserPanel) y las tablas de
+  // Admin — el disparador ya anticipa el tinte que vas a ver al abrir el panel.
+  const roleSlugHeader = ROLE_LABEL_TO_SLUG[user.rol];
+  const roleColorHeader = (roleSlugHeader && ROLE_COLORS[roleSlugHeader]) || HX.textTitle;
 
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
@@ -333,8 +328,9 @@ export default function Header() {
               <div
                 className="w-6 h-6 rounded-sm flex items-center justify-center text-xs font-bold"
                 style={{
-                  background: "rgba(255,255,255,0.08)",
-                  color: HX.textTitle,
+                  background: `color-mix(in srgb, ${roleColorHeader} 16%, transparent)`,
+                  border: `1px solid color-mix(in srgb, ${roleColorHeader} 45%, transparent)`,
+                  color: roleColorHeader,
                   fontFamily: HX.display,
                 }}
               >

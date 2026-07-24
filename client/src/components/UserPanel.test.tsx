@@ -1,37 +1,16 @@
 /**
  * UserPanel.test.tsx — Tests del panel de credencial de identidad.
- * Cubre: identidad mostrada, N° Empleado, y el gate real de "Niveles de
- * acceso" (Sistema) contra auth.getAccessibleModules (RBAC real).
+ * Cubre identidad mostrada (nombre, correo, rol, N° Empleado). Ya no incluye
+ * "Niveles de acceso" — se quitó de la UI (cada usuario ya conoce su propio
+ * alcance, era redundante mostrarlo aquí; ver CLAUDE.md).
  */
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import UserPanel, { type UserProfile } from "./UserPanel";
 
-// Módulos accesibles reales (auth.getAccessibleModules) — mutable para que
-// cada test simule un estado de carga/rol distinto sin re-mockear el módulo.
-const { mockModulesRef } = vi.hoisted(() => ({
-  mockModulesRef: {
-    current: { data: undefined as string[] | undefined, isLoading: true },
-  },
-}));
-
-vi.mock("@/lib/trpc", () => ({
-  trpc: {
-    auth: {
-      getAccessibleModules: {
-        useQuery: () => mockModulesRef.current,
-      },
-    },
-  },
-}));
-
 // UserPanel usa useIsMobile (window.matchMedia) — jsdom no lo implementa.
 beforeEach(() => {
-  // Reset explícito: cada test fija su propio estado como primera línea, pero
-  // sin esto un test futuro que haga un await antes de fijarlo heredaría en
-  // silencio el valor que dejó el test anterior.
-  mockModulesRef.current = { data: undefined, isLoading: true };
   Object.defineProperty(window, "matchMedia", {
     writable: true,
     value: vi.fn().mockImplementation((query: string) => ({
@@ -62,7 +41,6 @@ function setup(user: UserProfile = baseUser) {
 
 describe("UserPanel", () => {
   it("muestra la identidad real (nombre, correo, rol, N° Empleado)", () => {
-    mockModulesRef.current = { data: ["admin"], isLoading: false };
     setup();
     expect(screen.getByText("Cmdte. Roberto Hernández")).toBeInTheDocument();
     expect(screen.getByText("r.hernandez@edomex.gob.mx")).toBeInTheDocument();
@@ -71,33 +49,7 @@ describe("UserPanel", () => {
   });
 
   it("muestra '—' cuando no hay employeeId", () => {
-    mockModulesRef.current = { data: ["admin"], isLoading: false };
     setup({ ...baseUser, employeeId: undefined });
     expect(screen.getByText("—")).toBeInTheDocument();
-  });
-
-  it("con acceso real al módulo admin, 'Sistema' aparece habilitado", () => {
-    mockModulesRef.current = { data: ["mapa_geoespacial", "alertas", "admin"], isLoading: false };
-    setup();
-    const sistemaRow = screen.getByText("Sistema").closest("li")!;
-    expect(sistemaRow).toHaveTextContent("habilitado");
-  });
-
-  it("sin acceso real al módulo admin, 'Sistema' aparece restringido", () => {
-    mockModulesRef.current = { data: ["mapa_geoespacial", "alertas"], isLoading: false };
-    setup();
-    const sistemaRow = screen.getByText("Sistema").closest("li")!;
-    expect(sistemaRow).toHaveTextContent("restringido");
-    // Operación/Inteligencia (sin requireModule) siempre habilitados.
-    expect(screen.getByText("Operación").closest("li")).toHaveTextContent("habilitado");
-    expect(screen.getByText("Inteligencia").closest("li")).toHaveTextContent("habilitado");
-  });
-
-  it("mientras auth.getAccessibleModules carga, 'Sistema' muestra 'verificando…' (no 'restringido')", () => {
-    mockModulesRef.current = { data: undefined, isLoading: true };
-    setup();
-    const sistemaRow = screen.getByText("Sistema").closest("li")!;
-    expect(sistemaRow).toHaveTextContent("verificando");
-    expect(sistemaRow).not.toHaveTextContent("restringido");
   });
 });

@@ -319,7 +319,7 @@ export default function Header() {
           <div className="relative block" data-user-panel>
             <button
               onClick={() => setShowUserPanel(!showUserPanel)}
-              className="flex items-center gap-2 px-2 py-1 rounded transition-all"
+              className="flex items-center gap-2 px-2 py-1 rounded transition-all px-hit44"
               style={{
                 background: showUserPanel ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.03)",
                 border: `1px solid ${HX.border}`,

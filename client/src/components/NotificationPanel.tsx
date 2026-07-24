@@ -434,7 +434,7 @@ export default function NotificationPanel() {
       {/* Bell Button con Badge */}
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="relative"
+        className="relative px-hit44"
         aria-label="Notificaciones en tiempo real"
         style={{
           background: isOpen ? "rgba(255,255,255,0.08)" : "transparent",

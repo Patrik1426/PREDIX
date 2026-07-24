@@ -14,6 +14,7 @@
 // ============================================================
 
 import { useState, useMemo } from "react";
+import { createPortal } from "react-dom";
 import {
   useIncidenciaSummary, useIncidenciaEstatal,
   type IncidenciaRecord,
@@ -110,6 +111,7 @@ function useDashboard(data: IncidenciaRecord[], periodMonths: number) {
     // p10≈0.49, p50≈0.64, p90≈0.86 — antes p50 lineal era ≈0.02, invisible).
     const heatCells = muniSorted.slice(0, 125).map(([name, value]) => ({
       name,
+      value,
       intensity: Math.log(value + 1) / Math.log(maxMuni + 1),
     }));
 
@@ -177,33 +179,52 @@ export default function TableroTab() {
   // necesitamos la clasificación (independiente de cuántos meses de serie se
   // pidan), no la serie numérica completa.
   const { data: prediccionesResp, isLoading: loadingPred } = trpc.predicciones.predecirTodos.useQuery({ meses: 1 });
-  const RISK_RANK: Record<string, number> = { "crítico": 3, "alto": 2, "medio": 1, "bajo": 0 };
   const RISK_LABEL: Record<string, string> = { "crítico": "Crítico", "alto": "Alto", "medio": "Medio", "bajo": "Bajo" };
   const RISK_COLOR: Record<string, string> = { "crítico": "var(--px-crit)", "alto": "var(--px-warn)", "medio": "var(--px-brand)", "bajo": "var(--px-ok)" };
+  // Un representante por nivel (crítico→bajo), no un top-4 plano — con datos
+  // reales, el top-4 por riesgo casi siempre son las mismas ciudades grandes
+  // en "crítico 100%" (duplica "Top Municipios Críticos" de abajo y no aporta
+  // nada nuevo). Mostrar el semáforo completo (uno de cada nivel, el de mayor
+  // confianza dentro de su clase) da el panorama real del estado, incluyendo
+  // el "bajo" — que si casi todo está en crítico, es la excepción que sí vale
+  // la pena señalar y hoy no aparece en ningún lado del tablero.
   const risk = useMemo(() => {
-    const rows = prediccionesResp?.data ?? [];
-    return [...rows]
-      .filter((p) => !!p.riesgoClasificacion)
-      .sort((a, b) => {
-        const r = RISK_RANK[b.riesgoProyectado] - RISK_RANK[a.riesgoProyectado];
-        return r !== 0 ? r : (b.riesgoClasificacion!.confianza - a.riesgoClasificacion!.confianza);
-      })
-      .slice(0, 4)
-      .map((p) => ({ name: p.municipio, level: p.riesgoProyectado, conf: p.riesgoClasificacion!.confianza }));
+    const rows = (prediccionesResp?.data ?? []).filter((p) => !!p.riesgoClasificacion);
+    const byLevel = new Map<string, { municipio: string; riesgoClasificacion: { confianza: number } }>();
+    for (const p of rows) {
+      const cur = byLevel.get(p.riesgoProyectado);
+      if (!cur || p.riesgoClasificacion!.confianza > cur.riesgoClasificacion.confianza) {
+        byLevel.set(p.riesgoProyectado, { municipio: p.municipio, riesgoClasificacion: { confianza: p.riesgoClasificacion!.confianza } });
+      }
+    }
+    return (["crítico", "alto", "medio", "bajo"] as const)
+      .filter((lvl) => byLevel.has(lvl))
+      .map((lvl) => {
+        const r = byLevel.get(lvl)!;
+        return { name: r.municipio, level: lvl, conf: r.riesgoClasificacion.confianza };
+      });
   }, [prediccionesResp]);
 
-  // Gradiente continuo (bajo→hairline, medio→warn, alto→crit) — mismos 3
+  // Gradiente continuo (bajo→surface-2, medio→warn, alto→crit) — mismos 3
   // colores que ya pinta la leyenda de abajo, en vez de 4 cubetas de umbral
   // fijo. Con la escala logarítmica de arriba, un umbral fijo igual habría
   // quedado mal calibrado (log comprime distinto que lineal); interpolar
   // continuo evita tener que re-ajustar cortes a mano cada vez que cambian
-  // los datos.
+  // los datos. Base del extremo bajo = --px-surface-2 (opaco): mezclar contra
+  // --px-hairline (blanco translúcido) daba un olivo/café sucio en vez de un
+  // ámbar tenue limpio — color-mix compone también la alfa, y un neutro
+  // translúcido contamina el hue en vez de solo oscurecerlo.
   const heatColor = (i: number) => {
     const t = Math.max(0, Math.min(1, i));
     return t <= 0.5
-      ? `color-mix(in srgb, var(--px-warn) ${Math.round((t / 0.5) * 100)}%, var(--px-hairline))`
+      ? `color-mix(in srgb, var(--px-warn) ${Math.round((t / 0.5) * 100)}%, var(--px-surface-2))`
       : `color-mix(in srgb, var(--px-crit) ${Math.round(((t - 0.5) / 0.5) * 100)}%, var(--px-warn))`;
   };
+
+  // Tooltip real del heatmap (antes solo `title` nativo — sin valor, con
+  // delay, fuera de la identidad visual). Posición fija por cursor para que
+  // no se recorte contra el overflow de la tarjeta.
+  const [heatHover, setHeatHover] = useState<{ x: number; y: number; name: string; value: number } | null>(null);
 
   const trendColor = d.deltas.incidentes > 0 ? "var(--px-crit)" : "var(--px-ok)";
   const fresh = freshness(summary.ultimaActualizacion);
@@ -229,7 +250,7 @@ export default function TableroTab() {
             </span>
             <div className="inline-flex" style={{ background: "var(--px-surface)", border: "1px solid var(--px-hairline)", borderRadius: 10, padding: 3 }}>
               {PERIODS.map((p) => (
-                <button key={p.months} onClick={() => setPeriod(p.months)}
+                <button key={p.months} onClick={() => setPeriod(p.months)} className="px-hit44"
                   style={{
                     fontFamily: "var(--px-mono)", fontSize: "var(--px-text-xs)", letterSpacing: "0.04em",
                     color: period === p.months ? "var(--px-text)" : "var(--px-text-muted)",
@@ -266,26 +287,62 @@ export default function TableroTab() {
                 <button
                   onClick={() => window.dispatchEvent(new CustomEvent("predix:navigate-tab", { detail: "mapa" }))}
                   style={{ fontFamily: "var(--px-mono)", fontSize: "var(--px-text-xs)", color: "var(--px-brand)", background: "none", border: "none", cursor: "pointer", whiteSpace: "nowrap" }}
-                  className="flex items-center gap-1"
+                  className="flex items-center gap-1 px-hit44"
                 >
                   Ver mapa <ChevronRight size={12} />
                 </button>
               }
             />
             {d.heatCells.length ? (
-              <div className="flex flex-col" style={{ flex: 1 }}>
-                <div className="grid" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(34px, 1fr))", gap: 5, flex: 1, alignContent: "start" }}>
+              <div className="flex flex-col" style={{ flex: 1, minHeight: 0 }}>
+                {/* Sin aspect-ratio fijo: las celdas se estiran para llenar toda la
+                    altura disponible (grid stretch por defecto) — antes quedaba un
+                    hueco vacío entre la grilla y la leyenda porque el cuadrado se
+                    detenía en su propio ancho sin importar cuánta altura sobraba.
+                    minHeight propio (no solo flex:1): en el layout de 1 columna
+                    (<1024px) esta tarjeta ya no tiene un hermano que la obligue a
+                    estirarse — sin un piso de altura, "1fr" con contenedor sin
+                    altura definida colapsaba a casi 0 y la grilla desaparecía. */}
+                <div className="grid" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(34px, 1fr))", gridAutoRows: "1fr", gap: 5, flex: 1, minHeight: 220 }}>
                   {d.heatCells.map((c) => (
-                    <span key={c.name} title={`${c.name}`} style={{ aspectRatio: "1", borderRadius: 4, background: heatColor(c.intensity), boxShadow: c.intensity > 0.66 ? "0 0 7px rgba(229,72,77,.45)" : "none", transition: "0.15s" }} />
+                    <span
+                      key={c.name}
+                      onMouseEnter={(e) => setHeatHover({ x: e.clientX, y: e.clientY, name: c.name, value: c.value })}
+                      onMouseMove={(e) => setHeatHover({ x: e.clientX, y: e.clientY, name: c.name, value: c.value })}
+                      onMouseLeave={() => setHeatHover(null)}
+                      style={{ borderRadius: 4, background: heatColor(c.intensity), boxShadow: c.intensity > 0.66 ? "0 0 7px rgba(229,72,77,.45)" : "none", transition: "background 0.15s, transform 0.1s", cursor: "default" }}
+                    />
                   ))}
                 </div>
                 <div className="flex items-center gap-2" style={{ marginTop: "var(--px-4)", fontFamily: "var(--px-mono)", fontSize: "var(--px-text-xs)", color: "var(--px-text-faint)" }}>
                   bajo
-                  <span style={{ flex: 1, height: 6, borderRadius: 3, background: "linear-gradient(90deg, var(--px-hairline), var(--px-warn), var(--px-crit))" }} />
+                  <span style={{ flex: 1, height: 6, borderRadius: 3, background: "linear-gradient(90deg, var(--px-surface-2), var(--px-warn), var(--px-crit))" }} />
                   alto
                 </div>
               </div>
             ) : <EmptyState text={isLoading ? "Cargando intensidad…" : "Sin datos para el periodo"} />}
+            {/* Portal a document.body: el tablero anima su entrada con .px-stagger,
+                que deja un transform:translateY(0) residual en sus hijos directos
+                (animation-fill-mode:forwards conserva el último keyframe). Un
+                ancestro con transform redefine el contenedor de un position:fixed
+                — sin el portal, el tooltip dejaba de posicionarse contra la
+                ventana y se posicionaba contra ese ancestro, apareciendo lejos
+                del cursor real. */}
+            {heatHover && createPortal(
+              <div
+                role="tooltip"
+                style={{
+                  position: "fixed", left: heatHover.x + 14, top: heatHover.y + 14, zIndex: 60,
+                  pointerEvents: "none", padding: "7px 11px", borderRadius: "var(--px-r-sm)",
+                  background: "var(--px-surface-2)", border: "1px solid var(--px-hairline-strong)",
+                  boxShadow: "0 8px 24px rgba(0,0,0,0.45)",
+                }}
+              >
+                <div style={{ fontFamily: "var(--px-body)", fontSize: "var(--px-text-sm)", fontWeight: 600, color: "var(--px-text)" }}>{heatHover.name}</div>
+                <div style={{ fontFamily: "var(--px-mono)", fontSize: "var(--px-text-xs)", color: "var(--px-brand)", marginTop: 2 }}>{heatHover.value.toLocaleString()} incidentes</div>
+              </div>,
+              document.body,
+            )}
           </div>
 
           {/* Columna lateral: tendencia + riesgo */}
@@ -362,12 +419,19 @@ export default function TableroTab() {
           <div className="px-card flex flex-col" style={{ padding: "var(--px-5)" }}>
             <ModuleHeader title="FRESCURA DEL DATO" eyebrow="Estado del enlace · SESNSP" />
 
-            {/* Banner de frescura — signature: qué tan viejo es el dato */}
-            <div className="flex items-center justify-between" style={{ gap: 12, padding: "var(--px-4)", borderRadius: "var(--px-r-sm)", background: "color-mix(in srgb, var(--px-warn) 9%, transparent)", border: "1px solid rgba(229,162,61,0.28)" }}>
+            {/* Banner de frescura — signature: qué tan viejo es el dato.
+                flexWrap: en la franja tablet (~640-1023px, columna de
+                .dash-bottom ronda 180-230px) el icono + el badge REAL/SIMULADO
+                (ambos flexShrink:0, tamaño fijo) no dejaban casi nada de
+                ancho a "Hace un momento" — el texto colapsaba a ~10px y
+                envolvía letra por letra, encimándose visualmente con el
+                badge. Con wrap, el badge baja a su propia línea en vez de
+                exprimir el texto a lo ilegible. */}
+            <div className="flex items-center justify-between" style={{ gap: 12, rowGap: 8, flexWrap: "wrap", padding: "var(--px-4)", borderRadius: "var(--px-r-sm)", background: "color-mix(in srgb, var(--px-warn) 9%, transparent)", border: "1px solid rgba(229,162,61,0.28)" }}>
               <div className="flex items-center gap-3" style={{ minWidth: 0 }}>
                 <span className="status-pulse-amber" style={{ width: 11, height: 11, borderRadius: 999, background: "var(--px-warn)", flexShrink: 0 }} />
                 <div style={{ minWidth: 0 }}>
-                  <div style={{ fontFamily: "var(--px-display)", fontSize: "var(--px-text-lg)", fontWeight: 700, color: "var(--px-text)", lineHeight: 1, letterSpacing: "0.02em" }}>{fresh.ago}</div>
+                  <div className="truncate" style={{ fontFamily: "var(--px-display)", fontSize: "var(--px-text-lg)", fontWeight: 700, color: "var(--px-text)", lineHeight: 1, letterSpacing: "0.02em" }}>{fresh.ago}</div>
                   <div className="truncate" style={{ fontFamily: "var(--px-mono)", fontSize: "var(--px-text-xs)", color: "var(--px-text-faint)", marginTop: 5 }}>{fresh.exact}</div>
                 </div>
               </div>

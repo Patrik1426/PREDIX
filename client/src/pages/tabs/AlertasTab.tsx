@@ -240,7 +240,7 @@ export default function AlertasTab() {
             { id: "30d" as DateRange, label: "30d" },
             { id: "todo" as DateRange, label: "Todo" },
           ]).map(d => (
-            <button key={d.id} onClick={() => setDateRange(d.id)} style={{
+            <button key={d.id} onClick={() => setDateRange(d.id)} className="px-hit44" style={{
               fontFamily: "var(--px-mono)", fontSize: "var(--px-text-xs)", padding: "3px 8px",
               borderRadius: 4, border: "none", cursor: "pointer", whiteSpace: "nowrap",
               background: dateRange === d.id ? "color-mix(in srgb, var(--px-brand) 15%, transparent)" : "transparent",
@@ -260,7 +260,7 @@ export default function AlertasTab() {
             const c = f.id === "all" ? "var(--px-text-muted)" : nivelCfg(f.id).color;
             const active = filter === f.id;
             return (
-              <button key={f.id} onClick={() => setFilter(f.id)}
+              <button key={f.id} onClick={() => setFilter(f.id)} className="px-hit44"
                 style={{
                   fontFamily: "var(--px-mono)", fontSize: "var(--px-text-xs)", padding: "4px 8px",
                   borderRadius: 4, border: "none", cursor: "pointer", whiteSpace: "nowrap",

@@ -143,7 +143,7 @@ export default function MapaTab() {
       <button
         key={layer.id}
         onClick={() => toggleLayer(layer.id)}
-        className="flex items-center gap-1.5 px-3 py-1.5 rounded transition-colors shrink-0 whitespace-nowrap"
+        className="flex items-center gap-1.5 px-3 py-1.5 rounded transition-colors shrink-0 whitespace-nowrap px-hit44"
         style={{
           fontFamily: "var(--px-mono)", fontSize: "var(--px-text-xs)", letterSpacing: "0.06em",
           background: on ? "var(--px-brand-soft)" : "transparent",
@@ -160,7 +160,7 @@ export default function MapaTab() {
     <button
       onClick={handleRefresh}
       disabled={refreshing}
-      className="flex items-center justify-center gap-1.5 px-3 py-1.5 rounded transition-colors shrink-0 whitespace-nowrap"
+      className="flex items-center justify-center gap-1.5 px-3 py-1.5 rounded transition-colors shrink-0 whitespace-nowrap px-hit44"
       style={{
         background: "var(--px-brand-soft)", border: "1px solid rgba(0,212,255,0.25)",
         color: "var(--px-brand)", fontSize: "var(--px-text-xs)", fontFamily: "var(--px-mono)",
@@ -184,7 +184,7 @@ export default function MapaTab() {
           <button
             key={t.id}
             onClick={() => setSidePanel(t.id)}
-            className="flex-1 flex items-center justify-center gap-1.5 py-2 transition-colors"
+            className="flex-1 flex items-center justify-center gap-1.5 py-2 transition-colors px-hit44"
             style={{
               fontFamily: "var(--px-mono)", fontSize: "var(--px-text-xs)", letterSpacing: "0.06em",
               background: sidePanel === t.id ? "var(--px-brand-soft)" : "transparent",
@@ -210,8 +210,8 @@ export default function MapaTab() {
                 className="w-full"
                 style={{
                   background: "var(--px-bg)", border: "1px solid var(--px-hairline-strong)",
-                  borderRadius: "var(--px-r-sm)", padding: "8px 10px 8px 28px",
-                  color: "var(--px-text)", fontFamily: "var(--px-mono)", fontSize: "var(--px-text-base)",
+                  borderRadius: "var(--px-r-sm)", padding: "8px 10px 8px 28px", minHeight: 44,
+                  boxSizing: "border-box", color: "var(--px-text)", fontFamily: "var(--px-mono)", fontSize: "var(--px-text-base)",
                 }}
               />
             </div>
@@ -311,21 +311,43 @@ export default function MapaTab() {
     <div className="flex flex-col h-full relative" style={{ background: "var(--px-bg)", padding: "var(--px-3)", gap: "var(--px-3)" }}>
       {/* ── KPIs (1 fila scroll en móvil) + badge ── */}
       <div className="px-card flex items-center gap-3" style={{ padding: "var(--px-2) var(--px-4)", flexShrink: 0 }}>
-        <div className="flex md:grid md:grid-cols-4 gap-2 flex-1 overflow-x-auto scrollbar-tactical [&>*]:shrink-0 [&>*]:min-w-[150px] md:[&>*]:min-w-0">
+        {/* Un solo modo grid con minmax(170px,1fr) en vez de flex-móvil +
+            grid-cols-4-desktop con breakpoint fijo — probado con un
+            breakpoint (md, luego xl) y en ambos casos, en algún ancho
+            intermedio, la columna se quedaba más angosta que el label más
+            largo ("Elementos en línea", 130px) y lo truncaba o colapsaba a
+            0px (verificado midiendo clientWidth real, no a ojo). Con
+            minmax(170px,1fr) cada columna nunca baja de 170px — si no caben
+            las 4, la fila desborda y usa el mismo overflow-x-auto/scroll que
+            ya existía para móvil, sin importar el ancho exacto. */}
+        <div className="grid gap-2 flex-1 overflow-x-auto scrollbar-tactical" style={{ gridTemplateColumns: "repeat(4, minmax(195px, 1fr))" }}>
           <Kpi label="Monitoreados" value={municipiosReal.length} unit="/ 125" icon={<MapPin size={11} />} accent="var(--px-brand)" />
           <Kpi label="Alertas críticas" value={alertasCriticas} icon={<AlertTriangle size={11} />} accent="var(--px-crit)" />
           <Kpi label="Elementos en línea" value={totalElementos} unit="DEMO" icon={<Users size={11} />} accent="var(--px-ok)" />
           <Kpi label="Zonas críticas" value={zonasCriticas} icon={<Shield size={11} />} accent="var(--px-warn)" />
         </div>
-        <div className="hidden sm:flex items-center gap-1.5 self-start shrink-0" style={{
-          fontFamily: "var(--px-mono)", fontSize: "var(--px-text-xs)", letterSpacing: "0.1em",
+        {/* Antes "hidden sm:flex" — el badge de honestidad (real vs. simulado)
+            desaparecía por completo en móvil, justo el principio que más se
+            cuida en todo el resto del producto (ver CLAUDE.md). En <640px se
+            reduce a "REAL"/"SIM" (mismo patrón compacto que ya usa el badge
+            de Frescura del Dato en el Tablero) en vez de ocultarse. */}
+        {/* Antes "INCIDENCIA REAL · SESNSP" con letter-spacing 0.1em — el
+            pill terminaba casi tan ancho como una tarjeta KPI completa
+            (~190px) para comunicar mucho menos, y al no encogerse (shrink-0)
+            en la fila flex-1 le quitaba espacio real al área de KPIs.
+            "REAL · SESNSP" dice lo mismo (la palabra "incidencia" ya la da
+            el contexto del tab) con menos tracking — más chico sin perder
+            significado. */}
+        <div className="flex items-center gap-1.5 self-start shrink-0" title={esReal ? "Incidencia real · SESNSP" : "Datos simulados"} style={{
+          fontFamily: "var(--px-mono)", fontSize: "var(--px-text-xs)", letterSpacing: "0.06em",
           color: esReal ? "var(--px-ok)" : "var(--px-warn)",
           background: esReal ? "rgba(63,185,80,0.1)" : "rgba(229,162,61,0.1)",
           border: `1px solid ${esReal ? "rgba(63,185,80,0.3)" : "rgba(229,162,61,0.3)"}`,
-          borderRadius: "999px", padding: "3px 9px",
+          borderRadius: "999px", padding: "3px 8px",
         }}>
-          <FlaskConical size={11} />
-          {esReal ? "INCIDENCIA REAL · SESNSP" : "DATOS SIMULADOS"}
+          <FlaskConical size={10} />
+          <span className="sm:hidden">{esReal ? "REAL" : "SIM"}</span>
+          <span className="hidden sm:inline">{esReal ? "REAL · SESNSP" : "SIMULADO"}</span>
         </div>
       </div>
 
@@ -396,7 +418,7 @@ export default function MapaTab() {
 
           {/* ── Botón flotante CAPAS (solo móvil) ── */}
           <button
-            className="md:hidden absolute top-3 right-3 flex items-center gap-1.5 px-3 py-2 rounded-lg"
+            className="md:hidden absolute top-3 right-3 flex items-center gap-1.5 px-3 py-2 rounded-lg px-hit44"
             style={{ background: "rgba(10,22,40,0.92)", border: "1px solid var(--px-hairline-strong)", color: "var(--px-brand)", fontFamily: "var(--px-mono)", fontSize: "var(--px-text-xs)", zIndex: 600 }}
             onClick={() => setLayersOpen(v => !v)}
             aria-expanded={layersOpen}

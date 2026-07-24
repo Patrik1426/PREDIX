@@ -307,8 +307,15 @@
     letter-spacing: 0.08em;
   }
 
+  /* width = grosor del scrollbar VERTICAL, height = grosor del HORIZONTAL —
+     solo "width" estaba definido, así que cualquier contenedor con scroll
+     horizontal (ej. la tira de KPIs del Mapa) caía al grosor nativo del
+     navegador (~15-17px) en vez de la barra delgada de 4px, y con el color
+     de "thumb" de abajo (azul marca, opacidad fija) se veía como una barra
+     de progreso ancha en vez de un scrollbar discreto. */
   .scrollbar-tactical::-webkit-scrollbar {
     width: 4px;
+    height: 4px;
   }
   .scrollbar-tactical::-webkit-scrollbar-track {
     background: rgba(0, 0, 0, 0.2);
@@ -441,6 +448,25 @@
     background: var(--px-surface-2);
     border: 1px solid var(--px-hairline);
     border-radius: var(--px-r-md);
+  }
+
+  /* Área de toque mínima (WCAG/Apple/Material: 44×44px) sin cambiar el
+     tamaño VISUAL de la pill/chip — el lenguaje de pills compactas se repite
+     en Tablero/Alertas/Mapa/Header y agrandar la caja visual de cada una
+     rompería la consistencia con las decenas de pills puramente informativas
+     (mismo radio/padding) que las rodean. El ::before centrado, invisible,
+     extiende solo el área clickeable — necesita position:relative en el
+     elemento y que ningún ancestro tenga overflow:hidden (.px-card no lo
+     tiene). Aplicar a cualquier botón/enlace-pill nuevo que sea interactivo,
+     no a badges puramente informativos (esos no necesitan área de toque). */
+  .px-hit44 { position: relative; }
+  .px-hit44::before {
+    content: "";
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    width: max(44px, 100%);
+    height: max(44px, 100%);
   }
 
   /* ---- Encabezado de sección consistente ---- */
@@ -998,7 +1024,13 @@
   .dash-wrap { padding: var(--px-5); gap: var(--px-5); }
   .dash-toolbar { flex-direction: row; align-items: center; justify-content: space-between; }
   .dash-kpis { grid-template-columns: repeat(2, 1fr); gap: var(--px-4); }
-  .dash-bottom { grid-template-columns: 1.3fr 1fr; gap: var(--px-5); }
+  /* minmax(0, Nfr), no solo "1.3fr 1fr": un track "1fr" plano trae un piso
+     implícito de min-content (auto) — con las etiquetas largas de "Frescura
+     del Dato" (p.ej. "Periodicidad de sincronización"), ese piso ganaba sobre
+     la proporción y la columna derecha se veía forzada a ~84px, apilando el
+     texto letra por letra y encimándolo con el badge REAL. .dash-main ya
+     usaba este patrón correctamente (línea de abajo); aquí faltaba. */
+  .dash-bottom { grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); gap: var(--px-5); }
 }
 
 @media (min-width: 1024px) {
@@ -1692,10 +1724,17 @@
    LEAFLET — Tema táctico oscuro para mapa + popups (TacticalMap)
    ============================================================ */
 .leaflet-container { background: #0A1628; font-family: var(--px-body); }
+/* width/height/line-height 44px: el default de Leaflet es 30x30 (mide bien
+   con mouse, no con dedo) — igual que la utilidad .px-hit44 del resto de la
+   app, esto es el mínimo táctil WCAG/Apple/Material, aplicado una vez aquí
+   para los dos únicos mapas del producto (MapaTab, ZonasTab). */
 .leaflet-control-zoom a {
   background: rgba(8,18,36,0.92) !important;
   color: var(--px-text) !important;
   border-color: var(--px-hairline) !important;
+  width: 44px !important;
+  height: 44px !important;
+  line-height: 44px !important;
 }
 .leaflet-control-zoom a:hover { background: var(--px-surface-2) !important; color: var(--px-brand) !important; }
 .leaflet-control-attribution {

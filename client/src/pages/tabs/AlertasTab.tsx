@@ -91,6 +91,12 @@ export default function AlertasTab() {
   // BD query + fallback mock
   const dateParams = getDateRange(dateRange);
   const { data: dbData, refetch } = trpc.alertas.listar.useQuery(dateParams);
+  // Header/SideNav/MapaTab consultan alertas.listar SIN parámetros (distinto
+  // input = distinta entrada de caché en react-query) — invalidar solo el
+  // refetch local de esta pestaña no los actualizaba, se quedaban con el
+  // conteo viejo hasta refrescar la página. utils.invalidate() sin input
+  // refresca TODAS las variantes de alertas.listar a la vez.
+  const utils = trpc.useUtils();
   const esReal = dbData?.origen === "real";
   const fallbackAlertas = useMemo(() => ALERTAS_ACTIVAS.map(a => ({
     ...a, id: a.id, reconocida: false, escalada: false, resuelta: false,
@@ -139,6 +145,7 @@ export default function AlertasTab() {
   };
   const okOr = (data: { success: boolean; message?: string }, onOk: () => void) => {
     refetch();
+    utils.alertas.listar.invalidate();
     if (data.success) onOk();
     else toast.error(data.message || "No se pudo completar la acción — BD no disponible");
   };

@@ -50,7 +50,9 @@ function App() {
       <ThemeProvider defaultTheme="dark">
         <NotificationProvider>
           <TooltipProvider>
-            <Toaster richColors position="top-right" />
+            {/* bottom-right: top-right ya lo ocupan el reloj, la campana y el
+                usuario del Header — un toast ahí los tapaba por completo. */}
+            <Toaster position="bottom-right" />
             <Router />
           </TooltipProvider>
         </NotificationProvider>

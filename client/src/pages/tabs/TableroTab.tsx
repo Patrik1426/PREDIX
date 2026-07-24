@@ -100,7 +100,17 @@ function useDashboard(data: IncidenciaRecord[], periodMonths: number) {
     const muniSorted = Array.from(cur.muni.entries()).sort((a, b) => b[1] - a[1]);
     const maxMuni = muniSorted[0]?.[1] || 1;
     const topMunicipios = muniSorted.slice(0, 5).map(([name, value]) => ({ name, value, pct: value / maxMuni }));
-    const heatCells = muniSorted.slice(0, 125).map(([name, value]) => ({ name, intensity: value / maxMuni }));
+    // Escala logarítmica, no lineal: la incidencia por municipio en Edomex está
+    // muy sesgada (Ecatepec >80k vs mediana ~1,500 en la ventana completa) — con
+    // intensity = value/max lineal, ~85% de los 125 municipios caía por debajo del
+    // umbral visible más bajo y se pintaba idéntico al fondo de la tarjeta, aunque
+    // tuvieran datos reales no triviales. log(value+1)/log(max+1) reparte la
+    // intensidad de forma legible en todo el rango (verificado con datos reales:
+    // p10≈0.49, p50≈0.64, p90≈0.86 — antes p50 lineal era ≈0.02, invisible).
+    const heatCells = muniSorted.slice(0, 125).map(([name, value]) => ({
+      name,
+      intensity: Math.log(value + 1) / Math.log(maxMuni + 1),
+    }));
 
     // Semáforo estatal — heurística documentada a partir de la tendencia.
     let level: { txt: string; color: string } = { txt: "ELEVADO", color: "var(--px-warn)" };
@@ -167,8 +177,18 @@ export default function TableroTab() {
   const { data: incidenciaData, isLoading } = useIncidenciaEstatal();
   const d = useDashboard(incidenciaData, period);
 
-  const heatColor = (i: number) =>
-    i > 0.66 ? "var(--px-crit)" : i > 0.4 ? "var(--px-warn)" : i > 0.15 ? "rgba(229,162,61,.4)" : "var(--px-hairline)";
+  // Gradiente continuo (bajo→hairline, medio→warn, alto→crit) — mismos 3
+  // colores que ya pinta la leyenda de abajo, en vez de 4 cubetas de umbral
+  // fijo. Con la escala logarítmica de arriba, un umbral fijo igual habría
+  // quedado mal calibrado (log comprime distinto que lineal); interpolar
+  // continuo evita tener que re-ajustar cortes a mano cada vez que cambian
+  // los datos.
+  const heatColor = (i: number) => {
+    const t = Math.max(0, Math.min(1, i));
+    return t <= 0.5
+      ? `color-mix(in srgb, var(--px-warn) ${Math.round((t / 0.5) * 100)}%, var(--px-hairline))`
+      : `color-mix(in srgb, var(--px-crit) ${Math.round(((t - 0.5) / 0.5) * 100)}%, var(--px-warn))`;
+  };
 
   const trendColor = d.deltas.incidentes > 0 ? "var(--px-crit)" : "var(--px-ok)";
   const fresh = freshness(summary.ultimaActualizacion);

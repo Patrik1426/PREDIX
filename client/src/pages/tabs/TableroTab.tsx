@@ -18,6 +18,7 @@ import {
   useIncidenciaSummary, useIncidenciaEstatal,
   type IncidenciaRecord,
 } from "@/hooks/useIncidenciaData";
+import { trpc } from "@/lib/trpc";
 import {
   AlertTriangle, Users, MapPin,
   ArrowUpRight, ArrowDownRight, FlaskConical, Database, RefreshCw, ChevronRight,
@@ -117,15 +118,7 @@ function useDashboard(data: IncidenciaRecord[], periodMonths: number) {
     if (deltas.incidentes <= -3) level = { txt: "CALMA", color: "var(--px-ok)" };
     else if (deltas.incidentes > 8) level = { txt: "CRÍTICO", color: "var(--px-crit)" };
 
-    // Riesgo 24h — MUESTRA del modelo: usa el ranking real como proxy, rotulado.
-    const riskLevels = ["Alto", "Alto", "Medio", "Medio"];
-    const risk = topMunicipios.slice(0, 4).map((m, i) => ({
-      name: m.name,
-      level: riskLevels[i],
-      conf: Math.min(95, 55 + Math.round(m.pct * 40)),
-    }));
-
-    return { hasData, last12, cur, deltas, topMunicipios, heatCells, level, risk };
+    return { hasData, last12, cur, deltas, topMunicipios, heatCells, level };
   }, [data, periodMonths]);
 }
 
@@ -176,6 +169,28 @@ export default function TableroTab() {
   const { data: summary } = useIncidenciaSummary();
   const { data: incidenciaData, isLoading } = useIncidenciaEstatal();
   const d = useDashboard(incidenciaData, period);
+
+  // Riesgo próximas 24h — antes un proxy sintético (nivel fijo por posición +
+  // fórmula inventada de "confianza"); ahora el clasificador real de riesgo
+  // (riesgo_clasificacion, Issue #17 — mismo modelo que usa Modelo Predictivo,
+  // Accuracy/F1 macro reales del torneo de 3 candidatos). meses:1 porque solo
+  // necesitamos la clasificación (independiente de cuántos meses de serie se
+  // pidan), no la serie numérica completa.
+  const { data: prediccionesResp, isLoading: loadingPred } = trpc.predicciones.predecirTodos.useQuery({ meses: 1 });
+  const RISK_RANK: Record<string, number> = { "crítico": 3, "alto": 2, "medio": 1, "bajo": 0 };
+  const RISK_LABEL: Record<string, string> = { "crítico": "Crítico", "alto": "Alto", "medio": "Medio", "bajo": "Bajo" };
+  const RISK_COLOR: Record<string, string> = { "crítico": "var(--px-crit)", "alto": "var(--px-warn)", "medio": "var(--px-brand)", "bajo": "var(--px-ok)" };
+  const risk = useMemo(() => {
+    const rows = prediccionesResp?.data ?? [];
+    return [...rows]
+      .filter((p) => !!p.riesgoClasificacion)
+      .sort((a, b) => {
+        const r = RISK_RANK[b.riesgoProyectado] - RISK_RANK[a.riesgoProyectado];
+        return r !== 0 ? r : (b.riesgoClasificacion!.confianza - a.riesgoClasificacion!.confianza);
+      })
+      .slice(0, 4)
+      .map((p) => ({ name: p.municipio, level: p.riesgoProyectado, conf: p.riesgoClasificacion!.confianza }));
+  }, [prediccionesResp]);
 
   // Gradiente continuo (bajo→hairline, medio→warn, alto→crit) — mismos 3
   // colores que ya pinta la leyenda de abajo, en vez de 4 cubetas de umbral
@@ -305,23 +320,23 @@ export default function TableroTab() {
               ) : <EmptyState text={isLoading ? "Cargando serie temporal…" : "Sin datos para el periodo"} />}
             </div>
 
-            {/* Riesgo 24h */}
+            {/* Riesgo 24h — clasificador real (riesgo_clasificacion) */}
             <div className="px-card" style={{ padding: "var(--px-5)" }}>
               <ModuleHeader
                 title="RIESGO PRÓXIMAS 24H"
-                eyebrow="Estimación por incidencia reciente"
-                action={<span style={{ fontFamily: "var(--px-mono)", fontSize: "var(--px-text-xs)", color: "var(--px-brand)", border: "1px solid rgba(0,212,255,0.25)", borderRadius: 6, padding: "3px 7px", whiteSpace: "nowrap" }}>ATENEA-ML · muestra</span>}
+                eyebrow="Clasificador de riesgo — próximo periodo"
+                action={<span style={{ fontFamily: "var(--px-mono)", fontSize: "var(--px-text-xs)", color: "var(--px-brand)", border: "1px solid rgba(0,212,255,0.25)", borderRadius: 6, padding: "3px 7px", whiteSpace: "nowrap" }}>ATENEA-ML</span>}
               />
-              {d.risk.length ? d.risk.map((r, i) => {
-                const c = r.level === "Alto" ? "var(--px-crit)" : "var(--px-warn)";
+              {risk.length ? risk.map((r, i) => {
+                const c = RISK_COLOR[r.level];
                 return (
-                  <div key={r.name} className="flex items-center gap-3" style={{ padding: "10px 0", borderBottom: i < d.risk.length - 1 ? "1px solid var(--px-hairline)" : "none" }}>
-                    <span style={{ fontFamily: "var(--px-mono)", fontSize: "var(--px-text-xs)", fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", padding: "3px 9px", borderRadius: 999, color: c, background: `color-mix(in srgb, ${c} 14%, transparent)` }}>{r.level}</span>
+                  <div key={r.name} className="flex items-center gap-3" style={{ padding: "10px 0", borderBottom: i < risk.length - 1 ? "1px solid var(--px-hairline)" : "none" }}>
+                    <span style={{ fontFamily: "var(--px-mono)", fontSize: "var(--px-text-xs)", fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", padding: "3px 9px", borderRadius: 999, color: c, background: `color-mix(in srgb, ${c} 14%, transparent)` }}>{RISK_LABEL[r.level]}</span>
                     <span style={{ flex: 1, fontFamily: "var(--px-body)", fontSize: "var(--px-text-base)", fontWeight: 500 }} className="truncate">{r.name}</span>
                     <span style={{ fontFamily: "var(--px-mono)", fontSize: "var(--px-text-xs)", color: "var(--px-text-faint)" }}>{r.conf}%</span>
                   </div>
                 );
-              }) : <EmptyState text="Sin estimación disponible" />}
+              }) : <EmptyState text={loadingPred ? "Cargando clasificación…" : "Sin estimación disponible"} />}
             </div>
           </div>
         </div>
@@ -363,7 +378,7 @@ export default function TableroTab() {
             <div style={{ marginTop: "var(--px-3)" }}>
               <DataRow icon={<Database size={14} />} label="Registros cargados" value={isLoading ? "…" : incidenciaData.length.toLocaleString()} color="var(--px-brand)" />
               <DataRow icon={<MapPin size={14} />} label="Municipios reportados" value={`${summary.municipiosReportados} / 125`} color="var(--px-ok)" />
-              <DataRow icon={<RefreshCw size={14} />} label="Periodicidad de sincronización" value="24 h" color="var(--px-warn)" last />
+              <DataRow icon={<RefreshCw size={14} />} label="Periodicidad de sincronización" value="Manual" color="var(--px-warn)" last />
             </div>
           </div>
         </div>

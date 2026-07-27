@@ -450,20 +450,27 @@ export default function AdminTab() {
         <span style={{ fontFamily: "var(--px-display)", fontSize: "var(--px-text-sm)", fontWeight: 700, color: "var(--px-text)" }}>ADMINISTRACIÓN</span>
         {/* Actividad sigue en mock local (sin fuente de datos real, ver CLAUDE.md) — Usuarios/Roles/Auditoría ya son reales */}
         <OriginBadge real={activeSubTab === "usuarios" ? esReal : activeSubTab === "auditoria" ? auditEsReal : activeSubTab === "roles" ? rolesEsReal : activeSubTab === "actividad" ? actividadEsReal : false} />
-        <div className="hidden sm:flex items-center gap-3 ml-2">
+        {/* Antes `hidden sm:flex` ocultaba estos 2 conteos por debajo de 640px — el
+            toolbar ya tiene flex-wrap, así que basta con dejarlos siempre visibles
+            (degradan a una segunda línea en vez de desaparecer). */}
+        <div className="flex items-center gap-3 ml-2 flex-wrap">
           <span style={{ fontFamily: "var(--px-mono)", fontSize: "var(--px-text-xs)", color: "var(--px-ok)" }}><span style={{ fontWeight: 700 }}>{stats.activeUsers}</span> activos</span>
           <span style={{ fontFamily: "var(--px-mono)", fontSize: "var(--px-text-xs)", color: "var(--px-text-faint)" }}>{stats.todayActions} acciones hoy</span>
         </div>
-        <button onClick={() => setShowNewUserDialog(true)} className="ml-auto px-btn px-btn-primary" style={{ padding: "4px 10px", fontSize: "var(--px-text-xs)" }}>
+        <button onClick={() => setShowNewUserDialog(true)} className="ml-auto px-btn px-btn-primary px-hit44" style={{ padding: "4px 10px", fontSize: "var(--px-text-xs)" }}>
           <UserPlus size={12} /> Nuevo
         </button>
       </div>
 
       {/* ─── Sub-tabs ─── */}
-      <div className="px-card flex overflow-x-auto" role="tablist" aria-label="Secciones de administración" style={{ flexShrink: 0 }}>
+      <div className="px-card flex overflow-x-auto scrollbar-tactical" role="tablist" aria-label="Secciones de administración" style={{ flexShrink: 0 }}>
         {SUB_TABS.map(tab => (
-          <button key={tab.id} onClick={() => setActiveSubTab(tab.id)} role="tab" aria-selected={activeSubTab === tab.id} aria-controls={`panel-${tab.id}`} id={`tab-${tab.id}`} className="flex items-center transition-all whitespace-nowrap flex-1 justify-center" style={{ gap: "var(--px-1)", padding: "var(--px-3)", fontWeight: activeSubTab === tab.id ? 600 : 400, fontSize: "var(--px-text-xs)", color: activeSubTab === tab.id ? "var(--px-brand)" : "var(--px-text-faint)", borderBottom: activeSubTab === tab.id ? "2px solid var(--px-brand)" : "2px solid transparent", background: "none", border: "none", borderBottomStyle: "solid", cursor: "pointer", minHeight: 40 }}>
-            {tab.icon} <span className="hidden sm:inline">{tab.label}</span>
+          // Antes el label se ocultaba por completo bajo 640px (`hidden sm:inline`),
+          // dejando el tab sin nombre accesible visible (ni aria-label de respaldo) —
+          // el contenedor ya soporta scroll horizontal, así que el label se deja
+          // siempre visible y se apoya en el scroll en vez de esconder información.
+          <button key={tab.id} onClick={() => setActiveSubTab(tab.id)} role="tab" aria-selected={activeSubTab === tab.id} aria-controls={`panel-${tab.id}`} id={`tab-${tab.id}`} className="flex items-center transition-all whitespace-nowrap flex-1 justify-center px-hit44" style={{ gap: "var(--px-1)", padding: "var(--px-3)", fontWeight: activeSubTab === tab.id ? 600 : 400, fontSize: "var(--px-text-xs)", color: activeSubTab === tab.id ? "var(--px-brand)" : "var(--px-text-faint)", borderBottom: activeSubTab === tab.id ? "2px solid var(--px-brand)" : "2px solid transparent", background: "none", borderTop: "none", borderLeft: "none", borderRight: "none", cursor: "pointer", minHeight: 40 }}>
+            {tab.icon} <span>{tab.label}</span>
           </button>
         ))}
       </div>
@@ -498,13 +505,13 @@ export default function AdminTab() {
             <div className="flex items-center" style={{ gap: "var(--px-3)" }}>
               <div className="flex-1 relative">
                 <Search size={14} style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "var(--px-text-muted)" }} />
-                <input type="text" placeholder="Buscar usuario por nombre, email, rol o departamento..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} aria-label="Buscar usuarios" className="w-full pl-8 pr-3 py-2 rounded" style={{ ...inputStyle }} />
+                <input type="text" placeholder="Buscar usuario por nombre, email, rol o departamento..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} aria-label="Buscar usuarios" className="w-full pl-8 pr-3 py-2 rounded" style={{ ...inputStyle, minHeight: 44 }} />
               </div>
             </div>
 
             {/* Users Table */}
             <TacticalCard className="overflow-hidden">
-              <div className="overflow-x-auto">
+              <div className="overflow-x-auto scrollbar-tactical">
                 <table className="w-full" style={{ fontFamily: "var(--px-mono)", fontSize: "var(--px-text-sm)", minWidth: 800 }}>
                   <thead>
                     <tr style={{ background: "color-mix(in srgb, var(--px-brand) 4%, transparent)" }}>
@@ -548,11 +555,11 @@ export default function AdminTab() {
                           <td className="px-3 py-2.5" style={{ color: "var(--px-text-muted)", fontSize: "var(--px-text-xs)" }}>{user.lastLogin}</td>
                           <td className="px-3 py-2.5">
                             <div className="flex gap-1">
-                              <button onClick={() => { setEditingUser({ ...user }); setShowEditUserDialog(true); }} className="p-1 rounded" style={{ background: "color-mix(in srgb, var(--px-brand) 8%, transparent)" }} title="Editar" aria-label={`Editar usuario ${user.name}`}><Edit size={11} style={{ color: "var(--px-brand)" }} /></button>
-                              <button onClick={() => toggleUserStatus(user)} className="p-1 rounded" style={{ background: "color-mix(in srgb, var(--px-brand) 8%, transparent)" }} title={user.status === "active" ? "Suspender" : "Activar"} aria-label={user.status === "active" ? `Suspender usuario ${user.name}` : `Activar usuario ${user.name}`}>
+                              <button onClick={() => { setEditingUser({ ...user }); setShowEditUserDialog(true); }} className="p-1 rounded px-hit44" style={{ background: "color-mix(in srgb, var(--px-brand) 8%, transparent)" }} title="Editar" aria-label={`Editar usuario ${user.name}`}><Edit size={11} style={{ color: "var(--px-brand)" }} /></button>
+                              <button onClick={() => toggleUserStatus(user)} className="p-1 rounded px-hit44" style={{ background: "color-mix(in srgb, var(--px-brand) 8%, transparent)" }} title={user.status === "active" ? "Suspender" : "Activar"} aria-label={user.status === "active" ? `Suspender usuario ${user.name}` : `Activar usuario ${user.name}`}>
                                 {user.status === "active" ? <Lock size={11} style={{ color: "var(--px-warn)" }} /> : <Unlock size={11} style={{ color: "var(--px-ok)" }} />}
                               </button>
-                              <button onClick={() => { setDeleteTarget(user); setShowDeleteConfirm(true); }} className="p-1 rounded" style={{ background: "color-mix(in srgb, var(--px-crit) 8%, transparent)" }} title="Eliminar" aria-label={`Eliminar usuario ${user.name}`}><Trash2 size={11} style={{ color: "var(--px-crit)" }} /></button>
+                              <button onClick={() => { setDeleteTarget(user); setShowDeleteConfirm(true); }} className="p-1 rounded px-hit44" style={{ background: "color-mix(in srgb, var(--px-crit) 8%, transparent)" }} title="Eliminar" aria-label={`Eliminar usuario ${user.name}`}><Trash2 size={11} style={{ color: "var(--px-crit)" }} /></button>
                             </div>
                           </td>
                         </tr>
@@ -625,10 +632,10 @@ export default function AdminTab() {
                         })}
                       </div>
                       <div className="flex gap-2 mt-3">
-                        <button onClick={() => { setEditingRole({ ...role, permissions: { ...role.permissions } }); setShowEditPermissionsDialog(true); }} className="flex items-center gap-1 px-3 py-1.5 rounded" style={{ background: "color-mix(in srgb, var(--px-brand) 10%, transparent)", border: "1px solid color-mix(in srgb, var(--px-brand) 20%, transparent)", color: "var(--px-brand)", fontSize: "var(--px-text-sm)", fontWeight: 600 }}>
+                        <button onClick={() => { setEditingRole({ ...role, permissions: { ...role.permissions } }); setShowEditPermissionsDialog(true); }} className="flex items-center gap-1 px-3 py-1.5 rounded px-hit44" style={{ background: "color-mix(in srgb, var(--px-brand) 10%, transparent)", border: "1px solid color-mix(in srgb, var(--px-brand) 20%, transparent)", color: "var(--px-brand)", fontSize: "var(--px-text-sm)", fontWeight: 600 }}>
                           <Edit size={12} /> EDITAR PERMISOS
                         </button>
-                        <button onClick={() => handleResetRolePermissions(role)} className="flex items-center gap-1 px-3 py-1.5 rounded" style={{ border: "1px solid var(--px-hairline)", color: "var(--px-text-muted)", fontSize: "var(--px-text-sm)", fontWeight: 600 }}>
+                        <button onClick={() => handleResetRolePermissions(role)} className="flex items-center gap-1 px-3 py-1.5 rounded px-hit44" style={{ border: "1px solid var(--px-hairline)", color: "var(--px-text-muted)", fontSize: "var(--px-text-sm)", fontWeight: 600 }}>
                           <RefreshCw size={12} /> RESTABLECER A VALORES PREDETERMINADOS
                         </button>
                       </div>
@@ -645,18 +652,18 @@ export default function AdminTab() {
           <div className="space-y-4">
             <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Filtrar registros de auditoria">
               {[{ id: "all", label: "Todos" }, { id: "success", label: "Exitosos" }, { id: "failed", label: "Fallidos" }, { id: "warning", label: "Advertencias" }].map(f => (
-                <button key={f.id} onClick={() => setAuditFilter(f.id)} className="px-3 py-1.5 rounded" style={{ background: auditFilter === f.id ? "color-mix(in srgb, var(--px-brand) 15%, transparent)" : "transparent", border: `1px solid ${auditFilter === f.id ? "color-mix(in srgb, var(--px-brand) 40%, transparent)" : "var(--px-hairline)"}`, color: auditFilter === f.id ? "var(--px-brand)" : "var(--px-text-muted)", fontSize: "var(--px-text-sm)", fontWeight: 600 }}>
+                <button key={f.id} onClick={() => setAuditFilter(f.id)} className="px-3 py-1.5 rounded px-hit44" style={{ background: auditFilter === f.id ? "color-mix(in srgb, var(--px-brand) 15%, transparent)" : "transparent", border: `1px solid ${auditFilter === f.id ? "color-mix(in srgb, var(--px-brand) 40%, transparent)" : "var(--px-hairline)"}`, color: auditFilter === f.id ? "var(--px-brand)" : "var(--px-text-muted)", fontSize: "var(--px-text-sm)", fontWeight: 600 }}>
                   {f.label}
                 </button>
               ))}
               <div className="ml-auto">
-                <button onClick={() => { const csv = ["Timestamp,Usuario,Acción,Módulo,Detalle,IP,Estado", ...auditLogs.map(l => `${l.timestamp},${l.user},${l.action},${l.module},${l.detail},${l.ip},${l.status}`)].join("\n"); const blob = new Blob([csv], { type: "text/csv" }); const url = URL.createObjectURL(blob); const a = document.createElement("a"); a.href = url; a.download = "auditoria_predix.csv"; a.click(); URL.revokeObjectURL(url); toast.success("Logs de auditoría exportados"); }} className="flex items-center gap-1 px-3 py-1.5 rounded" aria-label="Exportar registros de auditoria a CSV" style={{ background: "color-mix(in srgb, var(--px-brand) 10%, transparent)", border: "1px solid color-mix(in srgb, var(--px-brand) 20%, transparent)", color: "var(--px-brand)", fontSize: "var(--px-text-sm)", fontWeight: 600 }}>
+                <button onClick={() => { const csv = ["Timestamp,Usuario,Acción,Módulo,Detalle,IP,Estado", ...auditLogs.map(l => `${l.timestamp},${l.user},${l.action},${l.module},${l.detail},${l.ip},${l.status}`)].join("\n"); const blob = new Blob([csv], { type: "text/csv" }); const url = URL.createObjectURL(blob); const a = document.createElement("a"); a.href = url; a.download = "auditoria_predix.csv"; a.click(); URL.revokeObjectURL(url); toast.success("Logs de auditoría exportados"); }} className="flex items-center gap-1 px-3 py-1.5 rounded px-hit44" aria-label="Exportar registros de auditoria a CSV" style={{ background: "color-mix(in srgb, var(--px-brand) 10%, transparent)", border: "1px solid color-mix(in srgb, var(--px-brand) 20%, transparent)", color: "var(--px-brand)", fontSize: "var(--px-text-sm)", fontWeight: 600 }}>
                   <Download size={12} /> EXPORTAR
                 </button>
               </div>
             </div>
             <TacticalCard className="overflow-hidden">
-              <div className="overflow-x-auto">
+              <div className="overflow-x-auto scrollbar-tactical">
                 <table className="w-full" style={{ fontFamily: "var(--px-mono)", fontSize: "var(--px-text-sm)", minWidth: 800 }}>
                   <thead>
                     <tr style={{ background: "color-mix(in srgb, var(--px-brand) 4%, transparent)" }}>
@@ -703,23 +710,33 @@ export default function AdminTab() {
                   Sin acciones registradas en el periodo.
                 </p>
               ) : (
-                <div className="space-y-2">
-                  {activityResp!.porModulo.map((mod) => {
-                    const maxAcciones = Math.max(...activityResp!.porModulo.map(m => m.acciones), 1);
-                    const barWidth = (mod.acciones / maxAcciones) * 100;
-                    return (
-                      <div key={mod.module} className="flex items-center" style={{ gap: "var(--px-3)" }}>
-                        <div style={{ width: 160, fontFamily: "var(--px-mono)", fontSize: "var(--px-text-xs)", color: "var(--px-text)", flexShrink: 0 }}>{ACTIVITY_MODULE_LABELS[mod.module] || mod.module}</div>
-                        <div className="flex-1 h-6 rounded overflow-hidden" style={{ background: "var(--px-surface)" }}>
-                          <div className="h-full rounded flex items-center px-2" style={{ width: `${barWidth}%`, background: "linear-gradient(90deg, color-mix(in srgb, var(--px-brand) 30%, transparent), color-mix(in srgb, var(--px-brand) 15%, transparent))", border: "1px solid color-mix(in srgb, var(--px-brand) 20%, transparent)", transition: "width 0.5s ease" }}>
-                            <span style={{ fontFamily: "var(--px-mono)", fontSize: "var(--px-text-xs)", color: "var(--px-brand)", fontWeight: 700 }}>{mod.acciones.toLocaleString()}</span>
+                // Fila con 2 columnas de ancho fijo (label 160px flexShrink:0 + 2x60px)
+                // + gaps: en viewports angostos (~375px con el padding acumulado de
+                // card/tab-panel/página) la suma de anchos fijos ya excede el ancho
+                // disponible antes de contar la barra — sin este wrapper, el excedente
+                // se recortaba en silencio contra el overflow-hidden del layout raíz
+                // (perdiendo la columna de tendencia). Se envuelve en scroll horizontal
+                // con un mínimo que preserva la barra legible, en vez de dejarla
+                // exprimirse a ~0px.
+                <div className="overflow-x-auto scrollbar-tactical">
+                  <div className="space-y-2" style={{ minWidth: 420 }}>
+                    {activityResp!.porModulo.map((mod) => {
+                      const maxAcciones = Math.max(...activityResp!.porModulo.map(m => m.acciones), 1);
+                      const barWidth = (mod.acciones / maxAcciones) * 100;
+                      return (
+                        <div key={mod.module} className="flex items-center" style={{ gap: "var(--px-3)" }}>
+                          <div style={{ width: 160, fontFamily: "var(--px-mono)", fontSize: "var(--px-text-xs)", color: "var(--px-text)", flexShrink: 0 }}>{ACTIVITY_MODULE_LABELS[mod.module] || mod.module}</div>
+                          <div className="flex-1 h-6 rounded overflow-hidden" style={{ background: "var(--px-surface)" }}>
+                            <div className="h-full rounded flex items-center px-2" style={{ width: `${barWidth}%`, background: "linear-gradient(90deg, color-mix(in srgb, var(--px-brand) 30%, transparent), color-mix(in srgb, var(--px-brand) 15%, transparent))", border: "1px solid color-mix(in srgb, var(--px-brand) 20%, transparent)", transition: "width 0.5s ease" }}>
+                              <span style={{ fontFamily: "var(--px-mono)", fontSize: "var(--px-text-xs)", color: "var(--px-brand)", fontWeight: 700 }}>{mod.acciones.toLocaleString()}</span>
+                            </div>
                           </div>
+                          <div style={{ width: 60, textAlign: "right", flexShrink: 0 }}><span style={{ fontFamily: "var(--px-mono)", fontSize: "var(--px-text-xs)", color: "var(--px-text-muted)" }}>{mod.usuariosUnicos} usr</span></div>
+                          <div style={{ width: 60, textAlign: "right", flexShrink: 0 }}><span style={{ fontFamily: "var(--px-mono)", fontSize: "var(--px-text-xs)", color: mod.tendencia > 0 ? "var(--px-ok)" : mod.tendencia < 0 ? "var(--px-crit)" : "var(--px-text-muted)", fontWeight: 600 }}>{mod.tendencia > 0 ? "+" : ""}{mod.tendencia}%</span></div>
                         </div>
-                        <div style={{ width: 60, textAlign: "right" }}><span style={{ fontFamily: "var(--px-mono)", fontSize: "var(--px-text-xs)", color: "var(--px-text-muted)" }}>{mod.usuariosUnicos} usr</span></div>
-                        <div style={{ width: 60, textAlign: "right" }}><span style={{ fontFamily: "var(--px-mono)", fontSize: "var(--px-text-xs)", color: mod.tendencia > 0 ? "var(--px-ok)" : mod.tendencia < 0 ? "var(--px-crit)" : "var(--px-text-muted)", fontWeight: 600 }}>{mod.tendencia > 0 ? "+" : ""}{mod.tendencia}%</span></div>
-                      </div>
-                    );
-                  })}
+                      );
+                    })}
+                  </div>
                 </div>
               )}
             </TacticalCard>
@@ -762,43 +779,43 @@ export default function AdminTab() {
       {showNewUserDialog && (
         <div className="fixed inset-0 flex items-center justify-center z-50 px-overlay" style={{ background: "rgba(0,0,0,0.7)" }} role="dialog" aria-modal="true" aria-labelledby="new-user-dialog-title">
           <TacticalCard className="w-full max-w-2xl max-h-[90vh] overflow-y-auto mx-4 px-dialog-enter" style={{ padding: "var(--px-5)" }}>
-            <div className="flex items-center justify-between" style={{ marginBottom: "var(--px-4)" }}>
-              <h3 id="new-user-dialog-title" style={{ fontWeight: 700, fontSize: "var(--px-text-lg)", color: "var(--px-brand)" }}>REGISTRAR NUEVO USUARIO</h3>
-              <button onClick={() => setShowNewUserDialog(false)} className="p-1 rounded" style={{ background: "color-mix(in srgb, var(--px-crit) 10%, transparent)" }} aria-label="Cerrar"><X size={16} style={{ color: "var(--px-crit)" }} /></button>
+            <div className="flex items-center justify-between gap-2" style={{ marginBottom: "var(--px-4)" }}>
+              <h3 id="new-user-dialog-title" style={{ fontWeight: 700, fontSize: "var(--px-text-lg)", color: "var(--px-brand)", minWidth: 0 }}>REGISTRAR NUEVO USUARIO</h3>
+              <button onClick={() => setShowNewUserDialog(false)} className="p-1 rounded px-hit44" style={{ background: "color-mix(in srgb, var(--px-crit) 10%, transparent)", flexShrink: 0 }} aria-label="Cerrar"><X size={16} style={{ color: "var(--px-crit)" }} /></button>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2" style={{ gap: "var(--px-3)" }}>
               <div>
                 <label className="px-label">NOMBRE COMPLETO *</label>
-                <input value={newUser.name} onChange={e => setNewUser(p => ({ ...p, name: e.target.value }))} className="px-input mt-1" placeholder="Ej: Cap. Juan Pérez" />
+                <input value={newUser.name} onChange={e => setNewUser(p => ({ ...p, name: e.target.value }))} className="px-input mt-1" style={{ minHeight: 44 }} placeholder="Ej: Cap. Juan Pérez" />
               </div>
               <div>
                 <label className="px-label">CORREO INSTITUCIONAL *</label>
-                <input value={newUser.email} onChange={e => setNewUser(p => ({ ...p, email: e.target.value }))} className="px-input mt-1" placeholder="usuario@edomex.gob.mx" />
+                <input value={newUser.email} onChange={e => setNewUser(p => ({ ...p, email: e.target.value }))} className="px-input mt-1" style={{ minHeight: 44 }} placeholder="usuario@edomex.gob.mx" />
               </div>
               <div>
                 <label className="px-label">DEPARTAMENTO</label>
-                <input value={newUser.department} onChange={e => setNewUser(p => ({ ...p, department: e.target.value }))} className="px-input mt-1" placeholder="Ej: C5 Estado de México" />
+                <input value={newUser.department} onChange={e => setNewUser(p => ({ ...p, department: e.target.value }))} className="px-input mt-1" style={{ minHeight: 44 }} placeholder="Ej: C5 Estado de México" />
               </div>
               <div>
                 <label className="px-label">CARGO</label>
-                <input value={newUser.cargo} onChange={e => setNewUser(p => ({ ...p, cargo: e.target.value }))} className="px-input mt-1" placeholder="Ej: Jefe de Monitoreo" />
+                <input value={newUser.cargo} onChange={e => setNewUser(p => ({ ...p, cargo: e.target.value }))} className="px-input mt-1" style={{ minHeight: 44 }} placeholder="Ej: Jefe de Monitoreo" />
               </div>
               <div>
                 <label className="px-label">ROL *</label>
-                <select value={newUser.role} onChange={e => setNewUser(p => ({ ...p, role: e.target.value }))} className="px-input mt-1">
+                <select value={newUser.role} onChange={e => setNewUser(p => ({ ...p, role: e.target.value }))} className="px-input mt-1" style={{ minHeight: 44 }}>
                   {roles.map(r => <option key={r.slug} value={r.name}>{r.name}</option>)}
                 </select>
               </div>
               <div>
                 <label className="px-label">ESTADO INICIAL</label>
-                <select value={newUser.status} onChange={e => setNewUser(p => ({ ...p, status: e.target.value as "active" | "inactive" }))} className="px-input mt-1">
+                <select value={newUser.status} onChange={e => setNewUser(p => ({ ...p, status: e.target.value as "active" | "inactive" }))} className="px-input mt-1" style={{ minHeight: 44 }}>
                   <option value="active">Activo</option>
                   <option value="inactive">Inactivo</option>
                 </select>
               </div>
               <div>
                 <label className="px-label">CONTRASEÑA INICIAL *</label>
-                <input type="password" value={newUser.password} onChange={e => setNewUser(p => ({ ...p, password: e.target.value }))} className="px-input mt-1" placeholder="Mínimo 8 caracteres" />
+                <input type="password" value={newUser.password} onChange={e => setNewUser(p => ({ ...p, password: e.target.value }))} className="px-input mt-1" style={{ minHeight: 44 }} placeholder="Mínimo 8 caracteres" />
               </div>
             </div>
 
@@ -812,7 +829,7 @@ export default function AdminTab() {
                 <div className="grid grid-cols-1 sm:grid-cols-2" style={{ gap: "var(--px-3)" }}>
                   <div>
                     <label className="px-label">TIPO DE IDENTIFICACION *</label>
-                    <select value={newUser.idType} onChange={e => setNewUser(p => ({ ...p, idType: e.target.value as any }))} className="px-input mt-1">
+                    <select value={newUser.idType} onChange={e => setNewUser(p => ({ ...p, idType: e.target.value as any }))} className="px-input mt-1" style={{ minHeight: 44 }}>
                       <option value="patrulla">Patrulla Asignada</option>
                       <option value="grupo_operativo">Grupo Operativo</option>
                       <option value="gps">Rastreo GPS</option>
@@ -821,15 +838,15 @@ export default function AdminTab() {
                   </div>
                   <div>
                     <label className="px-label">VALOR / IDENTIFICADOR *</label>
-                    <input value={newUser.idValue} onChange={e => setNewUser(p => ({ ...p, idValue: e.target.value }))} className="px-input mt-1" placeholder={newUser.idType === "patrulla" ? "Ej: P-4521" : newUser.idType === "grupo_operativo" ? "Ej: GRUPO ALFA-7" : newUser.idType === "gps" ? "Ej: GPS-TLK-0891" : "Ej: CEL-5512345678"} />
+                    <input value={newUser.idValue} onChange={e => setNewUser(p => ({ ...p, idValue: e.target.value }))} className="px-input mt-1" style={{ minHeight: 44 }} placeholder={newUser.idType === "patrulla" ? "Ej: P-4521" : newUser.idType === "grupo_operativo" ? "Ej: GRUPO ALFA-7" : newUser.idType === "gps" ? "Ej: GPS-TLK-0891" : "Ej: CEL-5512345678"} />
                   </div>
                   <div>
                     <label className="px-label">LATITUD (OPCIONAL)</label>
-                    <input value={newUser.lat} onChange={e => setNewUser(p => ({ ...p, lat: e.target.value }))} className="px-input mt-1" placeholder="Ej: 19.2933" />
+                    <input value={newUser.lat} onChange={e => setNewUser(p => ({ ...p, lat: e.target.value }))} className="px-input mt-1" style={{ minHeight: 44 }} placeholder="Ej: 19.2933" />
                   </div>
                   <div>
                     <label className="px-label">LONGITUD (OPCIONAL)</label>
-                    <input value={newUser.lng} onChange={e => setNewUser(p => ({ ...p, lng: e.target.value }))} className="px-input mt-1" placeholder="Ej: -99.6533" />
+                    <input value={newUser.lng} onChange={e => setNewUser(p => ({ ...p, lng: e.target.value }))} className="px-input mt-1" style={{ minHeight: 44 }} placeholder="Ej: -99.6533" />
                   </div>
                 </div>
                 <p style={{ fontFamily: "var(--px-mono)", fontSize: "var(--px-text-xs)", color: "var(--px-text-muted)", marginTop: "var(--px-2)" }}>
@@ -839,8 +856,8 @@ export default function AdminTab() {
             )}
 
             <div className="flex gap-2" style={{ marginTop: "var(--px-5)" }}>
-              <button onClick={() => setShowNewUserDialog(false)} className="flex-1 px-4 py-2 rounded" style={{ border: "1px solid var(--px-hairline)", color: "var(--px-text-muted)", fontSize: "var(--px-text-base)", fontWeight: 600 }}>CANCELAR</button>
-              <button onClick={handleCreateUser} className="flex-1 px-4 py-2 rounded flex items-center justify-center gap-2" style={{ background: "color-mix(in srgb, var(--px-brand) 15%, transparent)", border: "1px solid color-mix(in srgb, var(--px-brand) 40%, transparent)", color: "var(--px-brand)", fontSize: "var(--px-text-base)", fontWeight: 600 }}>
+              <button onClick={() => setShowNewUserDialog(false)} className="flex-1 px-4 py-2 rounded px-hit44" style={{ border: "1px solid var(--px-hairline)", color: "var(--px-text-muted)", fontSize: "var(--px-text-base)", fontWeight: 600 }}>CANCELAR</button>
+              <button onClick={handleCreateUser} className="flex-1 px-4 py-2 rounded flex items-center justify-center gap-2 px-hit44" style={{ background: "color-mix(in srgb, var(--px-brand) 15%, transparent)", border: "1px solid color-mix(in srgb, var(--px-brand) 40%, transparent)", color: "var(--px-brand)", fontSize: "var(--px-text-base)", fontWeight: 600 }}>
                 <Save size={14} /> REGISTRAR USUARIO
               </button>
             </div>
@@ -852,37 +869,37 @@ export default function AdminTab() {
       {showEditUserDialog && editingUser && (
         <div className="fixed inset-0 flex items-center justify-center z-50 px-overlay" style={{ background: "rgba(0,0,0,0.7)" }} role="dialog" aria-modal="true" aria-labelledby="edit-user-dialog-title">
           <TacticalCard className="w-full max-w-lg mx-4 px-dialog-enter" style={{ padding: "var(--px-5)" }}>
-            <div className="flex items-center justify-between" style={{ marginBottom: "var(--px-4)" }}>
-              <h3 id="edit-user-dialog-title" style={{ fontWeight: 700, fontSize: "var(--px-text-lg)", color: "var(--px-brand)" }}>EDITAR USUARIO</h3>
-              <button onClick={() => setShowEditUserDialog(false)} className="p-1 rounded" style={{ background: "color-mix(in srgb, var(--px-crit) 10%, transparent)" }} aria-label="Cerrar"><X size={16} style={{ color: "var(--px-crit)" }} /></button>
+            <div className="flex items-center justify-between gap-2" style={{ marginBottom: "var(--px-4)" }}>
+              <h3 id="edit-user-dialog-title" style={{ fontWeight: 700, fontSize: "var(--px-text-lg)", color: "var(--px-brand)", minWidth: 0 }}>EDITAR USUARIO</h3>
+              <button onClick={() => setShowEditUserDialog(false)} className="p-1 rounded px-hit44" style={{ background: "color-mix(in srgb, var(--px-crit) 10%, transparent)", flexShrink: 0 }} aria-label="Cerrar"><X size={16} style={{ color: "var(--px-crit)" }} /></button>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2" style={{ gap: "var(--px-3)" }}>
               <div>
                 <label className="px-label">NOMBRE</label>
-                <input value={editingUser.name} onChange={e => setEditingUser({ ...editingUser, name: e.target.value })} className="px-input mt-1" />
+                <input value={editingUser.name} onChange={e => setEditingUser({ ...editingUser, name: e.target.value })} className="px-input mt-1" style={{ minHeight: 44 }} />
               </div>
               <div>
                 <label className="px-label">EMAIL</label>
-                <input value={editingUser.email} onChange={e => setEditingUser({ ...editingUser, email: e.target.value })} className="px-input mt-1" />
+                <input value={editingUser.email} onChange={e => setEditingUser({ ...editingUser, email: e.target.value })} className="px-input mt-1" style={{ minHeight: 44 }} />
               </div>
               <div>
                 <label className="px-label">DEPARTAMENTO</label>
-                <input value={editingUser.department} onChange={e => setEditingUser({ ...editingUser, department: e.target.value })} className="px-input mt-1" />
+                <input value={editingUser.department} onChange={e => setEditingUser({ ...editingUser, department: e.target.value })} className="px-input mt-1" style={{ minHeight: 44 }} />
               </div>
               <div>
                 <label className="px-label">ROL</label>
-                <select value={editingUser.role} onChange={e => setEditingUser({ ...editingUser, role: e.target.value })} className="px-input mt-1">
+                <select value={editingUser.role} onChange={e => setEditingUser({ ...editingUser, role: e.target.value })} className="px-input mt-1" style={{ minHeight: 44 }}>
                   {roles.map(r => <option key={r.slug} value={r.name}>{r.name}</option>)}
                 </select>
               </div>
               <div>
                 <label className="px-label">RESETEAR CONTRASEÑA (OPCIONAL)</label>
-                <input type="password" value={resetPasswordValue} onChange={e => setResetPasswordValue(e.target.value)} className="px-input mt-1" placeholder="Dejar vacío para no cambiar" />
+                <input type="password" value={resetPasswordValue} onChange={e => setResetPasswordValue(e.target.value)} className="px-input mt-1" style={{ minHeight: 44 }} placeholder="Dejar vacío para no cambiar" />
               </div>
             </div>
             <div className="flex gap-2" style={{ marginTop: "var(--px-5)" }}>
-              <button onClick={() => setShowEditUserDialog(false)} className="flex-1 px-4 py-2 rounded" style={{ border: "1px solid var(--px-hairline)", color: "var(--px-text-muted)", fontSize: "var(--px-text-base)", fontWeight: 600 }}>CANCELAR</button>
-              <button onClick={handleEditUser} className="flex-1 px-4 py-2 rounded flex items-center justify-center gap-2" style={{ background: "color-mix(in srgb, var(--px-brand) 15%, transparent)", border: "1px solid color-mix(in srgb, var(--px-brand) 40%, transparent)", color: "var(--px-brand)", fontSize: "var(--px-text-base)", fontWeight: 600 }}>
+              <button onClick={() => setShowEditUserDialog(false)} className="flex-1 px-4 py-2 rounded px-hit44" style={{ border: "1px solid var(--px-hairline)", color: "var(--px-text-muted)", fontSize: "var(--px-text-base)", fontWeight: 600 }}>CANCELAR</button>
+              <button onClick={handleEditUser} className="flex-1 px-4 py-2 rounded flex items-center justify-center gap-2 px-hit44" style={{ background: "color-mix(in srgb, var(--px-brand) 15%, transparent)", border: "1px solid color-mix(in srgb, var(--px-brand) 40%, transparent)", color: "var(--px-brand)", fontSize: "var(--px-text-base)", fontWeight: 600 }}>
                 <Save size={14} /> GUARDAR CAMBIOS
               </button>
             </div>
@@ -894,11 +911,15 @@ export default function AdminTab() {
       {showEditPermissionsDialog && editingRole && (
         <div className="fixed inset-0 flex items-center justify-center z-50 px-overlay" style={{ background: "rgba(0,0,0,0.7)" }} role="dialog" aria-modal="true" aria-labelledby="edit-perms-dialog-title">
           <TacticalCard className="w-full max-w-2xl max-h-[80vh] overflow-y-auto mx-4 px-dialog-enter" style={{ padding: "var(--px-5)" }}>
-            <div className="flex items-center justify-between" style={{ marginBottom: "var(--px-4)" }}>
-              <h3 id="edit-perms-dialog-title" style={{ fontWeight: 700, fontSize: "var(--px-text-lg)", color: "var(--px-brand)" }}>EDITAR PERMISOS — {editingRole.name.toUpperCase()}</h3>
-              <button onClick={() => setShowEditPermissionsDialog(false)} className="p-1 rounded" style={{ background: "color-mix(in srgb, var(--px-crit) 10%, transparent)" }} aria-label="Cerrar"><X size={16} style={{ color: "var(--px-crit)" }} /></button>
+            <div className="flex items-center justify-between gap-2" style={{ marginBottom: "var(--px-4)" }}>
+              <h3 id="edit-perms-dialog-title" style={{ fontWeight: 700, fontSize: "var(--px-text-lg)", color: "var(--px-brand)", minWidth: 0 }}>EDITAR PERMISOS — {editingRole.name.toUpperCase()}</h3>
+              <button onClick={() => setShowEditPermissionsDialog(false)} className="p-1 rounded px-hit44" style={{ background: "color-mix(in srgb, var(--px-crit) 10%, transparent)", flexShrink: 0 }} aria-label="Cerrar"><X size={16} style={{ color: "var(--px-crit)" }} /></button>
             </div>
-            <div className="overflow-x-auto">
+            {/* Matriz V/E/D/X × 8 módulos — sin este overflow-x-auto+scrollbar-tactical
+                (faltaba solo el scrollbar-tactical, el overflow-x-auto ya existía) la
+                tabla (minWidth 500) desborda el dialog en viewports angostos donde
+                max-w-2xl se recorta a ~343px por el mx-4. */}
+            <div className="overflow-x-auto scrollbar-tactical">
             <table className="w-full" style={{ fontFamily: "var(--px-mono)", fontSize: "var(--px-text-sm)", minWidth: 500 }}>
               <thead>
                 <tr style={{ background: "color-mix(in srgb, var(--px-brand) 4%, transparent)" }}>
@@ -922,17 +943,30 @@ export default function AdminTab() {
                   return (
                     <tr key={mod} style={{ borderBottom: "1px solid var(--px-hairline)" }}>
                       <td className="px-3 py-2" style={{ color: "var(--px-text)" }}>{label}</td>
+                      {/* Checkboxes envueltos en <label> con px-hit44: el <input
+                          type=checkbox> real mide 16x16 (w-4 h-4) — muy por debajo
+                          de 44px. El <label> (no reemplazado, a diferencia del
+                          <input>) sí soporta el ::before de px-hit44 y hereda el
+                          toggle del checkbox por comportamiento nativo de label. */}
                       <td className="px-3 py-2 text-center">
-                        <input type="checkbox" checked={perm.canView} aria-label={`Ver ${label}`} onChange={() => setPerm({ canView: !perm.canView })} className="accent-green-500 w-4 h-4" />
+                        <label className="inline-flex items-center justify-center px-hit44">
+                          <input type="checkbox" checked={perm.canView} aria-label={`Ver ${label}`} onChange={() => setPerm({ canView: !perm.canView })} className="accent-green-500 w-4 h-4" />
+                        </label>
                       </td>
                       <td className="px-3 py-2 text-center">
-                        <input type="checkbox" checked={perm.canEdit} disabled={!perm.canView} aria-label={`Editar ${label}`} onChange={() => setPerm({ canEdit: !perm.canEdit })} className="accent-cyan-500 w-4 h-4" />
+                        <label className="inline-flex items-center justify-center px-hit44">
+                          <input type="checkbox" checked={perm.canEdit} disabled={!perm.canView} aria-label={`Editar ${label}`} onChange={() => setPerm({ canEdit: !perm.canEdit })} className="accent-cyan-500 w-4 h-4" />
+                        </label>
                       </td>
                       <td className="px-3 py-2 text-center">
-                        <input type="checkbox" checked={perm.canDelete} disabled={!perm.canView} aria-label={`Eliminar en ${label}`} onChange={() => setPerm({ canDelete: !perm.canDelete })} className="accent-red-500 w-4 h-4" />
+                        <label className="inline-flex items-center justify-center px-hit44">
+                          <input type="checkbox" checked={perm.canDelete} disabled={!perm.canView} aria-label={`Eliminar en ${label}`} onChange={() => setPerm({ canDelete: !perm.canDelete })} className="accent-red-500 w-4 h-4" />
+                        </label>
                       </td>
                       <td className="px-3 py-2 text-center">
-                        <input type="checkbox" checked={perm.canExport} disabled={!perm.canView} aria-label={`Exportar ${label}`} onChange={() => setPerm({ canExport: !perm.canExport })} className="accent-yellow-500 w-4 h-4" />
+                        <label className="inline-flex items-center justify-center px-hit44">
+                          <input type="checkbox" checked={perm.canExport} disabled={!perm.canView} aria-label={`Exportar ${label}`} onChange={() => setPerm({ canExport: !perm.canExport })} className="accent-yellow-500 w-4 h-4" />
+                        </label>
                       </td>
                     </tr>
                   );
@@ -941,8 +975,8 @@ export default function AdminTab() {
             </table>
             </div>
             <div className="flex gap-2" style={{ marginTop: "var(--px-5)" }}>
-              <button onClick={() => setShowEditPermissionsDialog(false)} className="flex-1 px-4 py-2 rounded" style={{ border: "1px solid var(--px-hairline)", color: "var(--px-text-muted)", fontSize: "var(--px-text-base)", fontWeight: 600 }}>CANCELAR</button>
-              <button onClick={handleSavePermissions} className="flex-1 px-4 py-2 rounded flex items-center justify-center gap-2" style={{ background: "color-mix(in srgb, var(--px-brand) 15%, transparent)", border: "1px solid color-mix(in srgb, var(--px-brand) 40%, transparent)", color: "var(--px-brand)", fontSize: "var(--px-text-base)", fontWeight: 600 }}>
+              <button onClick={() => setShowEditPermissionsDialog(false)} className="flex-1 px-4 py-2 rounded px-hit44" style={{ border: "1px solid var(--px-hairline)", color: "var(--px-text-muted)", fontSize: "var(--px-text-base)", fontWeight: 600 }}>CANCELAR</button>
+              <button onClick={handleSavePermissions} className="flex-1 px-4 py-2 rounded flex items-center justify-center gap-2 px-hit44" style={{ background: "color-mix(in srgb, var(--px-brand) 15%, transparent)", border: "1px solid color-mix(in srgb, var(--px-brand) 40%, transparent)", color: "var(--px-brand)", fontSize: "var(--px-text-base)", fontWeight: 600 }}>
                 <Save size={14} /> GUARDAR PERMISOS
               </button>
             </div>
@@ -965,8 +999,8 @@ export default function AdminTab() {
               Esta acción no se puede deshacer. Se eliminará el acceso y todos los datos asociados.
             </p>
             <div className="flex gap-2" style={{ marginTop: "var(--px-5)" }}>
-              <button onClick={() => setShowDeleteConfirm(false)} className="flex-1 px-4 py-2 rounded" style={{ border: "1px solid var(--px-hairline)", color: "var(--px-text-muted)", fontSize: "var(--px-text-base)", fontWeight: 600 }}>CANCELAR</button>
-              <button onClick={handleDeleteUser} className="flex-1 px-4 py-2 rounded" style={{ background: "color-mix(in srgb, var(--px-crit) 15%, transparent)", border: "1px solid color-mix(in srgb, var(--px-crit) 40%, transparent)", color: "var(--px-crit)", fontSize: "var(--px-text-base)", fontWeight: 600 }}>
+              <button onClick={() => setShowDeleteConfirm(false)} className="flex-1 px-4 py-2 rounded px-hit44" style={{ border: "1px solid var(--px-hairline)", color: "var(--px-text-muted)", fontSize: "var(--px-text-base)", fontWeight: 600 }}>CANCELAR</button>
+              <button onClick={handleDeleteUser} className="flex-1 px-4 py-2 rounded px-hit44" style={{ background: "color-mix(in srgb, var(--px-crit) 15%, transparent)", border: "1px solid color-mix(in srgb, var(--px-crit) 40%, transparent)", color: "var(--px-crit)", fontSize: "var(--px-text-base)", fontWeight: 600 }}>
                 ELIMINAR USUARIO
               </button>
             </div>

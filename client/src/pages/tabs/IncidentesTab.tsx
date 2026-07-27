@@ -231,7 +231,14 @@ export default function IncidentesTab() {
     <div className="flex flex-col h-full overflow-hidden" style={{ background: "var(--px-bg)", padding: "var(--px-3)", gap: "var(--px-3)" }}>
 
       {/* ── Toolbar unificado: badge + KPIs + filtros + export (1 barra) ── */}
-      <div className={`px-card ${showMobileDetail ? "hidden md:flex" : "flex"} flex-col md:flex-row md:items-center gap-3`} style={{ padding: "var(--px-3) var(--px-4)", flexShrink: 0 }}>
+      {/* md:flex-wrap: sin esto, badge+4 KPIs+contador+3 botones no cabían en
+          una sola fila entre ~768-900px (verificado: el boton "+ NUEVO" se
+          renderizaba 11px mas alla del borde derecho del viewport, y el
+          overflow-hidden del wrapper de pagina lo recortaba de forma
+          permanente e inalcanzable, sin scroll). Con flex-wrap, el grupo
+          derecho (contador+filtros+export+nuevo) baja a su propia linea en
+          vez de desbordarse fuera de pantalla. */}
+      <div className={`px-card ${showMobileDetail ? "hidden md:flex" : "flex"} flex-col md:flex-row md:flex-wrap md:items-center gap-3`} style={{ padding: "var(--px-3) var(--px-4)", flexShrink: 0 }}>
         {/* Izq: badge + KPIs */}
         <div className="flex items-center gap-3 flex-wrap">
           <OriginBadge real={esReal} />
@@ -252,17 +259,17 @@ export default function IncidentesTab() {
         {/* Der: registros + filtros + export */}
         <div className="flex items-center gap-2 md:ml-auto">
           <span style={{ fontFamily: "var(--px-mono)", fontSize: "var(--px-text-xs)", color: "var(--px-text-faint)" }}>{count} reg</span>
-          <button onClick={() => setShowFilters(!showFilters)} aria-label="Filtros" aria-expanded={showFilters}
+          <button onClick={() => setShowFilters(!showFilters)} aria-label="Filtros" aria-expanded={showFilters} className="px-hit44"
             style={{ fontFamily: "var(--px-mono)", fontSize: "var(--px-text-xs)", padding: "4px 10px", borderRadius: 4, border: "none", cursor: "pointer",
               background: showFilters ? "color-mix(in srgb, var(--px-brand) 15%, transparent)" : "transparent",
               color: showFilters ? "var(--px-brand)" : "var(--px-text-faint)" }}>
             <Filter size={11} className="inline mr-1" />FILTROS
             <ChevronDown size={11} className="inline ml-1" style={{ transform: showFilters ? "rotate(180deg)" : "none", transition: "transform 0.2s" }} />
           </button>
-          <button onClick={handleExportarIncidentes} className="px-btn px-btn-secondary" style={{ padding: "5px 10px", fontSize: "var(--px-text-xs)" }}>
+          <button onClick={handleExportarIncidentes} className="px-btn px-btn-secondary px-hit44" style={{ padding: "5px 10px", fontSize: "var(--px-text-xs)" }}>
             <FileText size={12} /> EXPORTAR
           </button>
-          <button onClick={() => setShowNewDialog(true)} className="px-btn px-btn-primary" style={{ padding: "5px 10px", fontSize: "var(--px-text-xs)" }}>
+          <button onClick={() => setShowNewDialog(true)} className="px-btn px-btn-primary px-hit44" style={{ padding: "5px 10px", fontSize: "var(--px-text-xs)" }}>
             <Plus size={12} /> NUEVO
           </button>
         </div>
@@ -279,9 +286,17 @@ export default function IncidentesTab() {
       <div className="flex flex-col md:flex-row flex-1 gap-3" style={{ minHeight: 0 }}>
 
         {/* Tabla / card list */}
-        <div className={`px-card flex flex-col flex-1 ${showMobileDetail ? "hidden md:flex" : "flex"}`} style={{ minHeight: 0 }}>
-          {/* Desktop header */}
-          <div role="row" className="hidden md:grid px-4 py-2" style={{ gridTemplateColumns: "56px 1fr 56px 100px 80px", borderBottom: "1px solid var(--px-hairline)", background: "rgba(0,0,0,0.1)", flexShrink: 0 }}>
+        {/* min-w-0: dentro de un flex-row (md:flex-row) un flex item no se encoge por
+            debajo de su contenido intrínseco a menos que se anule min-width:auto — sin
+            esto, las columnas fijas de la fila desktop (56+56+100+80=292px + la mínima
+            del 1fr) empujan todo el layout más ancho que el viewport en vez de activar
+            el scroll horizontal interno (visible en md, 768-1023px, con el panel de
+            Detalle abierto a su lado ocupando 320-384px fijos). */}
+        <div className={`px-card flex flex-col flex-1 min-w-0 md:overflow-x-auto scrollbar-tactical ${showMobileDetail ? "hidden md:flex" : "flex"}`} style={{ minHeight: 0 }}>
+          {/* Desktop header — minmax(160px,1fr) + minWidth en la fila: sin esto la
+              columna flexible no tiene piso y el texto se comprime hasta ser ilegible
+              antes de que el contenedor active el scroll horizontal. */}
+          <div role="row" className="hidden md:grid px-4 py-2" style={{ gridTemplateColumns: "56px minmax(160px,1fr) 56px 100px 80px", minWidth: 484, borderBottom: "1px solid var(--px-hairline)", background: "rgba(0,0,0,0.1)", flexShrink: 0 }}>
             {["ID", "TIPO / MUNICIPIO", "HORA", "ESTADO", "PRIORIDAD"].map(h => (
               <span key={h} role="columnheader" className="px-eyebrow">{h}</span>
             ))}
@@ -308,7 +323,7 @@ export default function IncidentesTab() {
                     <div style={{ fontFamily: "var(--px-mono)", fontSize: "var(--px-text-xs)", color: "var(--px-text-faint)", marginTop: 1 }}>{inc.municipio} · {inc.colonia}</div>
                   </div>
                   {/* Desktop row */}
-                  <div className="hidden md:grid px-4 py-2.5 items-center" style={{ gridTemplateColumns: "56px 1fr 56px 100px 80px" }}>
+                  <div className="hidden md:grid px-4 py-2.5 items-center" style={{ gridTemplateColumns: "56px minmax(160px,1fr) 56px 100px 80px", minWidth: 484 }}>
                     <span style={{ fontFamily: "var(--px-mono)", fontSize: "var(--px-text-xs)", color: "var(--px-brand)" }}>{inc.id.split("-").pop()}</span>
                     <div className="min-w-0">
                       <div className="truncate" style={{ fontFamily: "var(--px-body)", fontSize: "var(--px-text-sm)", fontWeight: 500, color: "var(--px-text)" }}>{inc.tipo}</div>
@@ -328,7 +343,7 @@ export default function IncidentesTab() {
         <div className={`px-card shrink-0 w-full md:w-80 lg:w-96 md:overflow-y-auto scrollbar-tactical ${showMobileDetail ? "flex flex-col" : "hidden md:flex md:flex-col"}`}
           role="complementary" aria-label="Detalle del incidente" style={{ padding: "var(--px-4)", minHeight: 0 }}>
 
-          <button onClick={() => setShowMobileDetail(false)} className="md:hidden px-btn px-btn-ghost mb-3" style={{ alignSelf: "flex-start", padding: "6px 12px" }}>
+          <button onClick={() => setShowMobileDetail(false)} className="md:hidden px-btn px-btn-ghost mb-3 px-hit44" style={{ alignSelf: "flex-start", padding: "6px 12px" }}>
             <ArrowLeft size={14} /> Volver
           </button>
 
@@ -365,35 +380,35 @@ export default function IncidentesTab() {
               {/* Acciones — solo mutan filas reales; en mock avisan "vista de demostración" */}
               <div className="grid grid-cols-2 gap-2" style={{ marginBottom: "var(--px-3)" }}>
                 {sel.estado !== "En proceso" && (
-                  <button onClick={() => handleCambiarEstado("En proceso")} className="px-btn px-btn-secondary" style={{ minHeight: 38, fontSize: "var(--px-text-xs)" }}>
+                  <button onClick={() => handleCambiarEstado("En proceso")} className="px-btn px-btn-secondary px-hit44" style={{ minHeight: 38, fontSize: "var(--px-text-xs)" }}>
                     <ArrowLeft size={13} /> REABRIR
                   </button>
                 )}
                 {sel.estado !== "Investigación" && (
-                  <button onClick={() => handleCambiarEstado("Investigación")} className="px-btn px-btn-secondary" style={{ minHeight: 38, fontSize: "var(--px-text-xs)" }}>
+                  <button onClick={() => handleCambiarEstado("Investigación")} className="px-btn px-btn-secondary px-hit44" style={{ minHeight: 38, fontSize: "var(--px-text-xs)" }}>
                     <Search size={13} /> INVESTIGACIÓN
                   </button>
                 )}
                 {sel.estado !== "Cerrado" && (
-                  <button onClick={() => handleCambiarEstado("Cerrado")} className="px-btn" style={{ minHeight: 38, fontSize: "var(--px-text-xs)", color: "var(--px-ok)", background: "color-mix(in srgb, var(--px-ok) 10%, transparent)", borderColor: "color-mix(in srgb, var(--px-ok) 25%, transparent)" }}>
+                  <button onClick={() => handleCambiarEstado("Cerrado")} className="px-btn px-hit44" style={{ minHeight: 38, fontSize: "var(--px-text-xs)", color: "var(--px-ok)", background: "color-mix(in srgb, var(--px-ok) 10%, transparent)", borderColor: "color-mix(in srgb, var(--px-ok) 25%, transparent)" }}>
                     <CheckCircle size={13} /> CERRAR
                   </button>
                 )}
-                <button onClick={handleToggleAtendido} className="px-btn px-btn-secondary" style={{ minHeight: 38, fontSize: "var(--px-text-xs)" }}>
+                <button onClick={handleToggleAtendido} className="px-btn px-btn-secondary px-hit44" style={{ minHeight: 38, fontSize: "var(--px-text-xs)" }}>
                   <CheckCircle size={13} /> {sel.atendido ? "MARCAR NO ATENDIDO" : "MARCAR ATENDIDO"}
                 </button>
                 {esReal && getDbId(sel) !== undefined && (
-                  <button onClick={handleEliminar} className="px-btn px-btn-danger" style={{ minHeight: 38, fontSize: "var(--px-text-xs)" }}>
+                  <button onClick={handleEliminar} className="px-btn px-btn-danger px-hit44" style={{ minHeight: 38, fontSize: "var(--px-text-xs)" }}>
                     <Trash2 size={13} /> ELIMINAR
                   </button>
                 )}
               </div>
 
-              <button onClick={handleAbrirEditar} className="px-btn px-btn-secondary w-full mb-2" style={{ minHeight: 38, fontSize: "var(--px-text-xs)" }}>
+              <button onClick={handleAbrirEditar} className="px-btn px-btn-secondary w-full mb-2 px-hit44" style={{ minHeight: 38, fontSize: "var(--px-text-xs)" }}>
                 <FileText size={13} /> EDITAR NARRATIVA / PRIORIDAD / PERSONAL
               </button>
 
-              <button onClick={() => setShowModal(true)} className="px-btn px-btn-primary w-full mb-3" style={{ minHeight: 40 }}>
+              <button onClick={() => setShowModal(true)} className="px-btn px-btn-primary w-full mb-3 px-hit44" style={{ minHeight: 40 }}>
                 <FileText size={14} /> Ver detalle completo
               </button>
 
@@ -403,7 +418,7 @@ export default function IncidentesTab() {
                   <span className="px-eyebrow">TENDENCIA</span>
                   <div className="flex gap-1">
                     {(["bar", "line"] as const).map(v => (
-                      <button key={v} onClick={() => setChartView(v)} style={{
+                      <button key={v} onClick={() => setChartView(v)} className="px-hit44" style={{
                         fontFamily: "var(--px-mono)", fontSize: "var(--px-text-xs)", padding: "3px 8px",
                         borderRadius: 3, border: "none", cursor: "pointer",
                         background: chartView === v ? "color-mix(in srgb, var(--px-brand) 15%, transparent)" : "transparent",
@@ -449,7 +464,7 @@ export default function IncidentesTab() {
               <span id="new-incidente-title" style={{ fontFamily: "var(--px-display)", fontSize: "var(--px-text-lg)", fontWeight: 700, color: "var(--px-text)" }}>
                 REGISTRAR NUEVO INCIDENTE
               </span>
-              <button onClick={() => setShowNewDialog(false)} aria-label="Cerrar" className="px-btn px-btn-secondary" style={{ padding: "4px 8px" }}>&#x2715;</button>
+              <button onClick={() => setShowNewDialog(false)} aria-label="Cerrar" className="px-btn px-btn-secondary px-hit44" style={{ padding: "4px 8px" }}>&#x2715;</button>
             </div>
 
             <div style={{ display: "flex", flexDirection: "column", gap: "var(--px-3)" }}>
@@ -458,7 +473,7 @@ export default function IncidentesTab() {
                   const pc = priCfg(pr);
                   return (
                     <button key={pr} onClick={() => setNewIncidente(p => ({ ...p, prioridad: pr }))}
-                      className="px-btn flex-1" data-active={newIncidente.prioridad === pr}
+                      className="px-btn flex-1 px-hit44" data-active={newIncidente.prioridad === pr}
                       style={{ color: pc.color, padding: "8px", textTransform: "uppercase", fontSize: "var(--px-text-xs)",
                         background: newIncidente.prioridad === pr ? pc.bg : "transparent",
                         borderColor: newIncidente.prioridad === pr ? pc.color : "var(--px-hairline)" }}>
@@ -469,18 +484,18 @@ export default function IncidentesTab() {
               </div>
               <div>
                 <label className="px-label">TIPO *</label>
-                <input value={newIncidente.tipo} onChange={e => setNewIncidente(p => ({ ...p, tipo: e.target.value }))} placeholder="Ej: Robo a transeúnte" className="px-input" />
+                <input value={newIncidente.tipo} onChange={e => setNewIncidente(p => ({ ...p, tipo: e.target.value }))} placeholder="Ej: Robo a transeúnte" className="px-input" style={{ minHeight: 44, boxSizing: "border-box" }} />
               </div>
               <div>
                 <label className="px-label">MUNICIPIO *</label>
-                <select value={newIncidente.municipio} onChange={e => setNewIncidente(p => ({ ...p, municipio: e.target.value }))} className="px-input">
+                <select value={newIncidente.municipio} onChange={e => setNewIncidente(p => ({ ...p, municipio: e.target.value }))} className="px-input" style={{ minHeight: 44, boxSizing: "border-box" }}>
                   <option value="">Seleccionar municipio...</option>
                   {municipios125.map((m: string) => <option key={m} value={m}>{m}</option>)}
                 </select>
               </div>
               <div>
                 <label className="px-label">COLONIA</label>
-                <input value={newIncidente.colonia} onChange={e => setNewIncidente(p => ({ ...p, colonia: e.target.value }))} placeholder="Ej: Centro" className="px-input" />
+                <input value={newIncidente.colonia} onChange={e => setNewIncidente(p => ({ ...p, colonia: e.target.value }))} placeholder="Ej: Centro" className="px-input" style={{ minHeight: 44, boxSizing: "border-box" }} />
               </div>
               <div>
                 <label className="px-label">NARRATIVA *</label>
@@ -488,13 +503,13 @@ export default function IncidentesTab() {
               </div>
               <div>
                 <label className="px-label">PERSONAL ASIGNADO</label>
-                <input value={newIncidente.personal} onChange={e => setNewIncidente(p => ({ ...p, personal: e.target.value }))} placeholder="Ej: Patrulla P-4521" className="px-input" />
+                <input value={newIncidente.personal} onChange={e => setNewIncidente(p => ({ ...p, personal: e.target.value }))} placeholder="Ej: Patrulla P-4521" className="px-input" style={{ minHeight: 44, boxSizing: "border-box" }} />
               </div>
             </div>
 
             <div className="flex gap-3" style={{ marginTop: "var(--px-5)" }}>
-              <button onClick={() => setShowNewDialog(false)} className="px-btn px-btn-secondary flex-1">CANCELAR</button>
-              <button onClick={handleCrearIncidente} className="px-btn px-btn-primary flex-1">
+              <button onClick={() => setShowNewDialog(false)} className="px-btn px-btn-secondary flex-1 px-hit44">CANCELAR</button>
+              <button onClick={handleCrearIncidente} className="px-btn px-btn-primary flex-1 px-hit44">
                 <FileText size={14} /> REGISTRAR INCIDENTE
               </button>
             </div>
@@ -510,7 +525,7 @@ export default function IncidentesTab() {
               <span id="edit-incidente-title" style={{ fontFamily: "var(--px-display)", fontSize: "var(--px-text-lg)", fontWeight: 700, color: "var(--px-text)" }}>
                 EDITAR INCIDENTE — {sel.id}
               </span>
-              <button onClick={() => setShowEditDialog(false)} aria-label="Cerrar" className="px-btn px-btn-secondary" style={{ padding: "4px 8px" }}>&#x2715;</button>
+              <button onClick={() => setShowEditDialog(false)} aria-label="Cerrar" className="px-btn px-btn-secondary px-hit44" style={{ padding: "4px 8px" }}>&#x2715;</button>
             </div>
 
             <div style={{ display: "flex", flexDirection: "column", gap: "var(--px-3)" }}>
@@ -519,7 +534,7 @@ export default function IncidentesTab() {
                   const pc = priCfg(pr);
                   return (
                     <button key={pr} onClick={() => setEditIncidente(p => ({ ...p, prioridad: pr }))}
-                      className="px-btn flex-1" data-active={editIncidente.prioridad === pr}
+                      className="px-btn flex-1 px-hit44" data-active={editIncidente.prioridad === pr}
                       style={{ color: pc.color, padding: "8px", textTransform: "uppercase", fontSize: "var(--px-text-xs)",
                         background: editIncidente.prioridad === pr ? pc.bg : "transparent",
                         borderColor: editIncidente.prioridad === pr ? pc.color : "var(--px-hairline)" }}>
@@ -530,7 +545,7 @@ export default function IncidentesTab() {
               </div>
               <div>
                 <label className="px-label">PERSONAL ASIGNADO</label>
-                <input value={editIncidente.personal} onChange={e => setEditIncidente(p => ({ ...p, personal: e.target.value }))} placeholder="Ej: Patrulla P-4521" className="px-input" />
+                <input value={editIncidente.personal} onChange={e => setEditIncidente(p => ({ ...p, personal: e.target.value }))} placeholder="Ej: Patrulla P-4521" className="px-input" style={{ minHeight: 44, boxSizing: "border-box" }} />
               </div>
               <div>
                 <label className="px-label">NARRATIVA</label>
@@ -539,8 +554,8 @@ export default function IncidentesTab() {
             </div>
 
             <div className="flex gap-3" style={{ marginTop: "var(--px-5)" }}>
-              <button onClick={() => setShowEditDialog(false)} className="px-btn px-btn-secondary flex-1">CANCELAR</button>
-              <button onClick={handleGuardarEdicion} className="px-btn px-btn-primary flex-1">
+              <button onClick={() => setShowEditDialog(false)} className="px-btn px-btn-secondary flex-1 px-hit44">CANCELAR</button>
+              <button onClick={handleGuardarEdicion} className="px-btn px-btn-primary flex-1 px-hit44">
                 <FileText size={14} /> GUARDAR CAMBIOS
               </button>
             </div>

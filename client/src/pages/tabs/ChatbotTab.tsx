@@ -118,19 +118,19 @@ export default function ChatbotTab() {
           <span style={{ fontFamily: "var(--px-mono)", fontSize: "var(--px-text-xs)", color: "var(--px-ok)", marginLeft: 6 }}>EN LÍNEA</span>
         </div>
         <div className="ml-auto flex items-center gap-1.5">
-          <button onClick={() => setSpeechEnabled(!speechEnabled)} title={speechEnabled ? "Desactivar voz" : "Activar voz"} style={{
+          <button onClick={() => setSpeechEnabled(!speechEnabled)} title={speechEnabled ? "Desactivar voz" : "Activar voz"} aria-label={speechEnabled ? "Desactivar voz" : "Activar voz"} className="px-hit44" style={{
             padding: "4px 8px", borderRadius: 4, border: "none", cursor: "pointer", fontFamily: "var(--px-mono)", fontSize: "var(--px-text-xs)",
             background: speechEnabled ? "color-mix(in srgb, var(--px-brand) 12%, transparent)" : "transparent",
             color: speechEnabled ? "var(--px-brand)" : "var(--px-text-faint)",
           }}>
             {speechEnabled ? <Volume2 size={12} /> : <VolumeX size={12} />}
           </button>
-          <button onClick={() => setMessages([{ id: "init-" + Date.now(), role: "bot", content: BIENVENIDA, timestamp: new Date() }])} title="Limpiar" style={{
+          <button onClick={() => setMessages([{ id: "init-" + Date.now(), role: "bot", content: BIENVENIDA, timestamp: new Date() }])} title="Limpiar" aria-label="Limpiar conversación" className="px-hit44" style={{
             padding: 4, borderRadius: 4, border: "none", cursor: "pointer", color: "var(--px-text-faint)", background: "transparent",
           }}>
             <Trash2 size={13} />
           </button>
-          <button onClick={() => setShowInfo(!showInfo)} title="Info del modelo" style={{
+          <button onClick={() => setShowInfo(!showInfo)} title="Info del modelo" aria-label="Información del modelo" className="px-hit44" style={{
             padding: 4, borderRadius: 4, border: "none", cursor: "pointer",
             color: showInfo ? "var(--px-brand)" : "var(--px-text-faint)", background: showInfo ? "color-mix(in srgb, var(--px-brand) 12%, transparent)" : "transparent",
           }}>
@@ -160,6 +160,7 @@ export default function ChatbotTab() {
                     background: msg.role === "bot" ? "var(--px-surface)" : "color-mix(in srgb, var(--px-warn) 8%, transparent)",
                     border: `1px solid ${msg.role === "bot" ? "var(--px-hairline)" : "color-mix(in srgb, var(--px-warn) 18%, transparent)"}`,
                     fontFamily: "var(--px-body)", fontSize: "var(--px-text-sm)", color: "var(--px-text-muted)", lineHeight: 1.6,
+                    overflowWrap: "anywhere", wordBreak: "break-word",
                   }} dangerouslySetInnerHTML={{ __html: formatMd(msg.content) }} />
                   <div className={`mt-1 ${msg.role === "user" ? "text-right" : ""}`} style={{ fontFamily: "var(--px-mono)", fontSize: "var(--px-text-xs)", color: "var(--px-text-faint)" }}>
                     {fmt(msg.timestamp)}
@@ -189,7 +190,7 @@ export default function ChatbotTab() {
           {/* Quick queries — scroll horizontal */}
           <div className="flex gap-1.5 overflow-x-auto scrollbar-tactical mx-3 mb-2" style={{ flexShrink: 0 }}>
             {QUICK_QUERIES.map(q => (
-              <button key={q} onClick={() => sendMessage(q)} className="shrink-0" style={{
+              <button key={q} onClick={() => sendMessage(q)} className="shrink-0 px-hit44" style={{
                 fontFamily: "var(--px-mono)", fontSize: "var(--px-text-xs)", padding: "4px 10px",
                 borderRadius: 999, border: "1px solid var(--px-hairline)", cursor: "pointer",
                 background: "transparent", color: "var(--px-text-faint)", whiteSpace: "nowrap",
@@ -200,7 +201,7 @@ export default function ChatbotTab() {
           {/* Input */}
           <div className="flex gap-2" style={{ padding: "var(--px-3)", borderTop: "1px solid var(--px-hairline)", flexShrink: 0 }}>
             {speechSupported && (
-              <button onClick={toggleListening} className="shrink-0" style={{
+              <button onClick={toggleListening} title={isListening ? "Detener dictado" : "Dictar por voz"} aria-label={isListening ? "Detener dictado" : "Dictar por voz"} className="shrink-0 px-hit44" style={{
                 width: 40, height: 40, borderRadius: "var(--px-r-sm)", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
                 background: isListening ? "color-mix(in srgb, var(--px-crit) 15%, transparent)" : "transparent",
                 color: isListening ? "var(--px-crit)" : "var(--px-brand)",
@@ -212,8 +213,8 @@ export default function ChatbotTab() {
               placeholder={isListening ? "Dictando..." : "Escribe tu consulta..."}
               onChange={e => setInput(e.target.value)}
               onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
-              className="px-input flex-1" style={{ fontSize: "var(--px-text-sm)" }} />
-            <button onClick={() => sendMessage()} disabled={!input.trim()} className="px-btn px-btn-primary shrink-0" style={{ width: 40, height: 40, padding: 0 }}>
+              className="px-input flex-1" style={{ fontSize: "var(--px-text-sm)", minHeight: 44, boxSizing: "border-box" }} />
+            <button onClick={() => sendMessage()} disabled={!input.trim()} aria-label="Enviar mensaje" className="px-btn px-btn-primary shrink-0 px-hit44" style={{ width: 40, height: 40, padding: 0 }}>
               <Send size={15} />
             </button>
           </div>
@@ -233,7 +234,7 @@ export default function ChatbotTab() {
                     <div style={{ fontFamily: "var(--px-mono)", fontSize: "var(--px-text-xs)", color: "var(--px-brand)" }}>ASISTENTE TÁCTICO v1.0</div>
                   </div>
                 </div>
-                <button onClick={() => setShowInfo(false)} style={{ color: "var(--px-text-faint)", background: "none", border: "none", cursor: "pointer" }}><X size={16} /></button>
+                <button onClick={() => setShowInfo(false)} title="Cerrar" aria-label="Cerrar panel de información" className="px-hit44" style={{ color: "var(--px-text-faint)", background: "none", border: "none", cursor: "pointer" }}><X size={16} /></button>
               </div>
 
               <div style={{ padding: "var(--px-4)" }}>

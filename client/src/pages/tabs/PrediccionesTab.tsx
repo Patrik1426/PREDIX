@@ -120,7 +120,7 @@ export default function PrediccionesTab() {
           onFocus={() => setMuniListOpen(true)}
           onBlur={() => setTimeout(() => setMuniListOpen(false), 200)}
           className="px-input"
-          style={{ fontSize: "var(--px-text-xs)", color: muniSearch ? "var(--px-text)" : "var(--px-brand)", fontWeight: muniSearch ? 400 : 600 }}
+          style={{ fontSize: "var(--px-text-xs)", color: muniSearch ? "var(--px-text)" : "var(--px-brand)", fontWeight: muniSearch ? 400 : 600, minHeight: 44, boxSizing: "border-box" }}
         />
         {/* Dropdown flotante */}
         {muniListOpen && filteredMunis.length > 0 && (
@@ -134,7 +134,8 @@ export default function PrediccionesTab() {
               <div key={m} className="cursor-pointer transition-all"
                 onMouseDown={e => { e.preventDefault(); setSelectedMunicipio(m); setMuniSearch(""); setMuniListOpen(false); }}
                 style={{
-                  padding: "7px var(--px-3)", fontFamily: "var(--px-mono)", fontSize: "var(--px-text-xs)",
+                  minHeight: 44, boxSizing: "border-box", display: "flex", alignItems: "center",
+                  padding: "0 var(--px-3)", fontFamily: "var(--px-mono)", fontSize: "var(--px-text-xs)",
                   color: m === selectedMunicipio ? "var(--px-brand)" : "var(--px-text-muted)",
                   background: m === selectedMunicipio ? "color-mix(in srgb, var(--px-brand) 10%, transparent)" : "transparent",
                   fontWeight: m === selectedMunicipio ? 700 : 400,
@@ -156,7 +157,7 @@ export default function PrediccionesTab() {
         <div className="px-eyebrow" style={{ marginBottom: 4 }}>Horizonte</div>
         <div className="flex gap-1 mb-3">
           {[1, 3, 6, 12].map(m => (
-            <button key={m} onClick={() => setMeses(m)} className="flex-1" style={{
+            <button key={m} onClick={() => setMeses(m)} className="flex-1 px-hit44" style={{
               fontFamily: "var(--px-mono)", fontSize: "var(--px-text-xs)", padding: "6px 0",
               borderRadius: 4, border: "none", cursor: "pointer",
               background: meses === m ? "color-mix(in srgb, var(--px-brand) 15%, transparent)" : "transparent",
@@ -169,11 +170,11 @@ export default function PrediccionesTab() {
         </div>
         <div className="flex gap-2">
           <button onClick={handleGenerar} disabled={isGenerating || loadingPred}
-            className="px-btn px-btn-primary flex-1" style={{ minHeight: 40 }}>
+            className="px-btn px-btn-primary flex-1 px-hit44" style={{ minHeight: 40 }}>
             {isGenerating || loadingPred ? <><Loader size={14} className="animate-spin" /> Generando...</> : <><Brain size={14} /> Generar</>}
           </button>
           <button onClick={() => { setGenerationKey(0); setMeses(3); toast.info("Reiniciado"); }}
-            className="px-btn px-btn-secondary" style={{ minHeight: 40 }}>
+            className="px-btn px-btn-secondary px-hit44" style={{ minHeight: 40 }}>
             <RefreshCw size={14} />
           </button>
         </div>
@@ -298,7 +299,7 @@ export default function PrediccionesTab() {
                 aria-expanded={showTechnical}
                 aria-controls="pred-technical-detail"
                 className="w-full flex items-center justify-between"
-                style={{ padding: "var(--px-2) var(--px-4)", background: "transparent", border: "none", cursor: "pointer" }}
+                style={{ padding: "var(--px-2) var(--px-4)", minHeight: 44, boxSizing: "border-box", background: "transparent", border: "none", cursor: "pointer" }}
               >
                 <span style={{ fontFamily: "var(--px-body)", fontSize: "var(--px-text-xs)", color: "var(--px-text-muted)" }}>
                   ¿Cómo se calculó esta predicción?
@@ -422,7 +423,7 @@ export default function PrediccionesTab() {
         <span style={{ fontFamily: "var(--px-display)", fontSize: "var(--px-text-sm)", fontWeight: 700, color: "var(--px-text)" }}>ATENEA-ML</span>
         <OriginBadge real={summary.origen === "real"} />
         <div className="flex items-center gap-2 ml-auto">
-          {pred && <button onClick={handleExportCSV} className="px-btn px-btn-secondary" style={{ padding: "3px 8px", fontSize: "var(--px-text-xs)" }}><Download size={11} /> CSV</button>}
+          {pred && <button onClick={handleExportCSV} className="px-btn px-btn-secondary px-hit44" style={{ padding: "3px 8px", fontSize: "var(--px-text-xs)" }}><Download size={11} /> CSV</button>}
         </div>
       </div>
 

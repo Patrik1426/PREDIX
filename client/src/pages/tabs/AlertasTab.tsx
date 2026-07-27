@@ -205,7 +205,7 @@ export default function AlertasTab() {
           <CircleDot size={10} className="status-pulse-red" style={{ color: "var(--px-crit)" }} />
           <span style={{ fontFamily: "var(--px-display)", fontSize: "var(--px-text-md)", fontWeight: 700, color: "var(--px-text)" }}>ALERTAS</span>
           <OriginBadge real={esReal} />
-          <button onClick={() => setShowNewAlertDialog(true)} className="ml-auto px-btn px-btn-primary" style={{ padding: "5px 10px", fontSize: "var(--px-text-xs)" }}>
+          <button onClick={() => setShowNewAlertDialog(true)} className="ml-auto px-btn px-btn-primary px-hit44" style={{ padding: "5px 10px", fontSize: "var(--px-text-xs)" }}>
             <Plus size={12} /> NUEVA
           </button>
         </div>
@@ -231,7 +231,7 @@ export default function AlertasTab() {
         </div>
 
         {/* Filtros: fecha + nivel */}
-        <div className="flex gap-1 overflow-x-auto items-center" style={{ padding: "var(--px-2) var(--px-3)" }}>
+        <div className="flex gap-1 overflow-x-auto items-center scrollbar-tactical" style={{ padding: "var(--px-2) var(--px-3)" }}>
           {/* Rango de fecha */}
           <Calendar size={11} style={{ color: "var(--px-text-faint)", flexShrink: 0, marginRight: 2 }} />
           {([
@@ -249,7 +249,7 @@ export default function AlertasTab() {
           ))}
           <span style={{ width: 1, height: 16, background: "var(--px-hairline)", margin: "0 4px", flexShrink: 0 }} />
         </div>
-        <div className="flex gap-1 overflow-x-auto" role="group" aria-label="Filtrar por nivel" style={{ padding: "0 var(--px-3) var(--px-2)" }}>
+        <div className="flex gap-1 overflow-x-auto scrollbar-tactical" role="group" aria-label="Filtrar por nivel" style={{ padding: "0 var(--px-3) var(--px-2)" }}>
           {[
             { id: "all" as NivelFilter, label: "Todo", count: alertas.length },
             { id: "critical" as NivelFilter, label: "Crít", count: kpis.criticas },
@@ -327,7 +327,7 @@ export default function AlertasTab() {
             {/* Botón volver — solo mobile */}
             <button
               onClick={() => setShowMobileDetail(false)}
-              className="md:hidden px-btn px-btn-ghost mb-3"
+              className="md:hidden px-btn px-btn-ghost mb-3 px-hit44"
               style={{ alignSelf: "flex-start", padding: "6px 12px" }}
             >
               ← Volver a alertas
@@ -385,7 +385,7 @@ export default function AlertasTab() {
                 <span style={{ fontFamily: "var(--px-mono)", fontSize: "var(--px-text-sm)", color: "var(--px-ok)", flex: 1 }}>Alerta resuelta — situación controlada</span>
                 {esReal && getDbId(sel) && (
                   <button onClick={() => { if (confirm("¿Eliminar esta alerta de la base de datos?")) { eliminarMut.mutate({ id: getDbId(sel)! }); setSelectedId(""); } }}
-                    className="px-btn px-btn-danger" style={{ padding: "3px 8px", fontSize: "var(--px-text-xs)" }}>
+                    className="px-btn px-btn-danger px-hit44" style={{ padding: "3px 8px", fontSize: "var(--px-text-xs)" }}>
                     <Trash2 size={11} /> Eliminar
                   </button>
                 )}
@@ -454,7 +454,7 @@ export default function AlertasTab() {
               <span id="new-alert-title" style={{ fontFamily: "var(--px-display)", fontSize: "var(--px-text-lg)", fontWeight: 700, color: "var(--px-text)" }}>
                 CREAR NUEVA ALERTA
               </span>
-              <button onClick={() => setShowNewAlertDialog(false)} aria-label="Cerrar" className="px-btn px-btn-secondary" style={{ padding: "4px 8px" }}>&#x2715;</button>
+              <button onClick={() => setShowNewAlertDialog(false)} aria-label="Cerrar" className="px-btn px-btn-secondary px-hit44" style={{ padding: "4px 8px" }}>&#x2715;</button>
             </div>
 
             <div style={{ display: "flex", flexDirection: "column", gap: "var(--px-3)" }}>
@@ -464,7 +464,7 @@ export default function AlertasTab() {
                   const nc = nivelCfg(n);
                   return (
                     <button key={n} onClick={() => setNewAlert(p => ({ ...p, nivel: n }))}
-                      className="px-btn flex-1" data-active={newAlert.nivel === n}
+                      className="px-btn flex-1 px-hit44" data-active={newAlert.nivel === n}
                       style={{
                         color: nc.color, padding: "8px",
                         background: newAlert.nivel === n ? nc.bg : "transparent",
@@ -478,7 +478,7 @@ export default function AlertasTab() {
 
               <div>
                 <label className="px-label">TÍTULO *</label>
-                <input value={newAlert.titulo} onChange={e => setNewAlert(p => ({ ...p, titulo: e.target.value }))} placeholder="Ej: Operativo activo — Zona Norte" className="px-input" />
+                <input value={newAlert.titulo} onChange={e => setNewAlert(p => ({ ...p, titulo: e.target.value }))} placeholder="Ej: Operativo activo — Zona Norte" className="px-input" style={{ minHeight: 44, boxSizing: "border-box" }} />
               </div>
               <div>
                 <label className="px-label">DESCRIPCIÓN</label>
@@ -486,7 +486,7 @@ export default function AlertasTab() {
               </div>
               <div>
                 <label className="px-label">MUNICIPIO *</label>
-                <select value={newAlert.municipio} onChange={e => setNewAlert(p => ({ ...p, municipio: e.target.value }))} className="px-input">
+                <select value={newAlert.municipio} onChange={e => setNewAlert(p => ({ ...p, municipio: e.target.value }))} className="px-input" style={{ minHeight: 44, boxSizing: "border-box" }}>
                   <option value="">Seleccionar municipio...</option>
                   {municipios125.map(m => <option key={m} value={m}>{m}</option>)}
                 </select>
@@ -494,8 +494,8 @@ export default function AlertasTab() {
             </div>
 
             <div className="flex gap-3" style={{ marginTop: "var(--px-5)" }}>
-              <button onClick={() => setShowNewAlertDialog(false)} className="px-btn px-btn-secondary flex-1">CANCELAR</button>
-              <button onClick={handleCrearAlerta} className="px-btn px-btn-primary flex-1">
+              <button onClick={() => setShowNewAlertDialog(false)} className="px-btn px-btn-secondary flex-1 px-hit44">CANCELAR</button>
+              <button onClick={handleCrearAlerta} className="px-btn px-btn-primary flex-1 px-hit44">
                 <Bell size={14} /> CREAR ALERTA
               </button>
             </div>

@@ -366,16 +366,16 @@ export default function IntegracionTab() {
               </span>
             ))}
           </div>
-          <button onClick={() => setShowNewDialog(true)} className="px-btn px-btn-primary" style={{ padding: "4px 10px", fontSize: "var(--px-text-xs)" }}>
+          <button onClick={() => setShowNewDialog(true)} className="px-btn px-btn-primary px-hit44" style={{ padding: "4px 10px", fontSize: "var(--px-text-xs)" }}>
             <Plus size={12} /> Nueva
           </button>
         </div>
       </div>
 
       {/* Sub-tabs */}
-      <div className="px-card flex overflow-x-auto" role="tablist" aria-label="Secciones de integración" style={{ flexShrink: 0 }}>
+      <div className="px-card flex overflow-x-auto scrollbar-tactical" role="tablist" aria-label="Secciones de integración" style={{ flexShrink: 0 }}>
         {SUB_TABS.map(tab => (
-          <button key={tab.id} onClick={() => setActiveSubTab(tab.id)} role="tab" aria-selected={activeSubTab === tab.id} aria-controls={`tabpanel-${tab.id}`} id={`tab-${tab.id}`} className="flex items-center transition-all whitespace-nowrap flex-1 justify-center" style={{ gap: "var(--px-1)", padding: "var(--px-3)", fontWeight: activeSubTab === tab.id ? 600 : 400, fontSize: "var(--px-text-xs)", color: activeSubTab === tab.id ? "var(--px-brand)" : "var(--px-text-faint)", borderBottom: activeSubTab === tab.id ? "2px solid var(--px-brand)" : "2px solid transparent", background: "none", border: "none", borderBottomStyle: "solid", cursor: "pointer", minHeight: 40 }}>
+          <button key={tab.id} onClick={() => setActiveSubTab(tab.id)} role="tab" aria-selected={activeSubTab === tab.id} aria-controls={`tabpanel-${tab.id}`} id={`tab-${tab.id}`} className="flex items-center transition-all whitespace-nowrap flex-1 justify-center px-hit44" style={{ gap: "var(--px-1)", padding: "var(--px-3)", fontWeight: activeSubTab === tab.id ? 600 : 400, fontSize: "var(--px-text-xs)", color: activeSubTab === tab.id ? "var(--px-brand)" : "var(--px-text-faint)", borderBottom: activeSubTab === tab.id ? "2px solid var(--px-brand)" : "2px solid transparent", background: "none", borderTop: "none", borderLeft: "none", borderRight: "none", cursor: "pointer", minHeight: 40 }}>
             {tab.icon} <span className="hidden sm:inline">{tab.label}</span>
           </button>
         ))}
@@ -406,7 +406,7 @@ export default function IntegracionTab() {
             <div className="flex items-center" style={{ gap: "var(--px-3)" }}>
               <div className="flex-1 relative">
                 <Search size={14} style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "var(--px-text-muted)" }} />
-                <input type="text" placeholder="Buscar integración..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} aria-label="Buscar integración" className="w-full pl-8 pr-3 py-2 rounded" style={inputStyle} />
+                <input type="text" placeholder="Buscar integración..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} aria-label="Buscar integración" className="w-full pl-8 pr-3 py-2 rounded" style={{ ...inputStyle, minHeight: 44 }} />
               </div>
             </div>
 
@@ -435,7 +435,7 @@ export default function IntegracionTab() {
                       <span style={{ fontFamily: "var(--px-mono)", fontSize: "var(--px-text-xs)", color: integration.avgLatency > 500 ? "var(--px-warn)" : "var(--px-ok)" }}><span style={{ fontWeight: 700 }}>{integration.avgLatency}</span>ms</span>
                     )}
                     <div className="ml-auto flex gap-1" onClick={e => e.stopPropagation()}>
-                      <button onClick={() => handleSync(integration)} aria-label={`Sincronizar ${integration.name}`} style={{ padding: 4, borderRadius: 4, background: "none", border: "none", cursor: "pointer", color: "var(--px-brand)" }}><RefreshCw size={13} /></button>
+                      <button onClick={() => handleSync(integration)} aria-label={`Sincronizar ${integration.name}`} className="px-hit44" style={{ padding: 4, borderRadius: 4, background: "none", border: "none", cursor: "pointer", color: "var(--px-brand)" }}><RefreshCw size={13} /></button>
                       <button aria-label="Ver detalle" style={{ padding: 4, borderRadius: 4, background: "none", border: "none", cursor: "pointer", color: "var(--px-text-faint)" }}><ChevronRight size={13} /></button>
                     </div>
                   </div>
@@ -453,14 +453,14 @@ export default function IntegracionTab() {
                 <div className="flex items-center flex-wrap" style={{ gap: "var(--px-3)" }}>
                   <AlertTriangle size={16} style={{ color: "var(--px-crit)", flexShrink: 0 }} />
                   <span style={{ fontSize: "var(--px-text-base)", color: "var(--px-crit)", fontWeight: 600, flex: "1 1 200px" }}>{stats.expiredSecrets} secreto(s) expirado(s) requieren rotación inmediata</span>
-                  <button onClick={() => { secrets.filter(s => estadoSecreto(s) === "expired").forEach(s => handleRotateSecret(s.id)); }} className="sm:ml-auto px-3 py-1 rounded" style={{ background: "color-mix(in srgb, var(--px-crit) 15%, transparent)", border: "1px solid color-mix(in srgb, var(--px-crit) 30%, transparent)", color: "var(--px-crit)", fontSize: "var(--px-text-sm)", fontWeight: 600 }}>ROTAR TODOS</button>
+                  <button onClick={() => { secrets.filter(s => estadoSecreto(s) === "expired").forEach(s => handleRotateSecret(s.id)); }} className="sm:ml-auto px-3 py-1 rounded px-hit44" style={{ background: "color-mix(in srgb, var(--px-crit) 15%, transparent)", border: "1px solid color-mix(in srgb, var(--px-crit) 30%, transparent)", color: "var(--px-crit)", fontSize: "var(--px-text-sm)", fontWeight: 600 }}>ROTAR TODOS</button>
                 </div>
               </TacticalCard>
             )}
             <TacticalCard className="overflow-hidden">
               <div className="flex items-center justify-between flex-wrap gap-2" style={{ padding: "var(--px-3) var(--px-4)", borderBottom: "1px solid var(--px-hairline)" }}>
                 <span className="px-section-title">CREDENCIALES ALMACENADAS</span>
-                <button onClick={() => setShowNewSecretDialog(true)} className="flex items-center gap-1 px-3 py-1 rounded" style={{ background: "color-mix(in srgb, var(--px-brand) 10%, transparent)", border: "1px solid color-mix(in srgb, var(--px-brand) 20%, transparent)", color: "var(--px-brand)", fontSize: "var(--px-text-sm)", fontWeight: 600 }}><Plus size={12} /> AGREGAR SECRETO</button>
+                <button onClick={() => setShowNewSecretDialog(true)} className="flex items-center gap-1 px-3 py-1 rounded px-hit44" style={{ background: "color-mix(in srgb, var(--px-brand) 10%, transparent)", border: "1px solid color-mix(in srgb, var(--px-brand) 20%, transparent)", color: "var(--px-brand)", fontSize: "var(--px-text-sm)", fontWeight: 600 }}><Plus size={12} /> AGREGAR SECRETO</button>
               </div>
               {secrets.length === 0 && (
                 <div className="px-3 py-4 text-center" style={{ color: "var(--px-text-faint)", fontFamily: "var(--px-mono)", fontSize: "var(--px-text-sm)" }}>Bóveda vacía (o sin conexión a BD) — agrega un secreto para empezar.</div>
@@ -497,11 +497,11 @@ export default function IntegracionTab() {
                           <div style={{ color: "var(--px-text-muted)" }}>{secret.lastRotatedAt ? new Date(secret.lastRotatedAt).toLocaleDateString("es-MX") : "—"}</div>
                         </div>
                       </div>
-                      <div className="flex gap-1 justify-end">
-                        <button onClick={() => toggleSecretVisibility(secret.id)} className="p-1.5 rounded" style={{ background: "color-mix(in srgb, var(--px-brand) 8%, transparent)" }} title={revelado === undefined ? "Mostrar" : "Ocultar"} aria-label={revelado === undefined ? "Mostrar secreto" : "Ocultar secreto"}>{revelado === undefined ? <Eye size={13} style={{ color: "var(--px-text-muted)" }} /> : <EyeOff size={13} style={{ color: "var(--px-brand)" }} />}</button>
-                        <button onClick={() => copySecret(secret.id)} className="p-1.5 rounded" style={{ background: "color-mix(in srgb, var(--px-brand) 8%, transparent)" }} title="Copiar" aria-label="Copiar secreto"><Copy size={13} style={{ color: "var(--px-text-muted)" }} /></button>
-                        <button onClick={() => handleRotateSecret(secret.id)} className="p-1.5 rounded" style={{ background: "color-mix(in srgb, var(--px-brand) 8%, transparent)" }} title="Rotar" aria-label="Rotar secreto"><RefreshCw size={13} style={{ color: "var(--px-brand)" }} /></button>
-                        <button onClick={() => handleDeleteSecret(secret.id)} className="p-1.5 rounded" style={{ background: "color-mix(in srgb, var(--px-crit) 8%, transparent)" }} title="Eliminar" aria-label="Eliminar secreto"><Trash2 size={13} style={{ color: "var(--px-crit)" }} /></button>
+                      <div className="flex gap-5 justify-end">
+                        <button onClick={() => toggleSecretVisibility(secret.id)} className="p-1.5 rounded px-hit44" style={{ background: "color-mix(in srgb, var(--px-brand) 8%, transparent)" }} title={revelado === undefined ? "Mostrar" : "Ocultar"} aria-label={revelado === undefined ? "Mostrar secreto" : "Ocultar secreto"}>{revelado === undefined ? <Eye size={13} style={{ color: "var(--px-text-muted)" }} /> : <EyeOff size={13} style={{ color: "var(--px-brand)" }} />}</button>
+                        <button onClick={() => copySecret(secret.id)} className="p-1.5 rounded px-hit44" style={{ background: "color-mix(in srgb, var(--px-brand) 8%, transparent)" }} title="Copiar" aria-label="Copiar secreto"><Copy size={13} style={{ color: "var(--px-text-muted)" }} /></button>
+                        <button onClick={() => handleRotateSecret(secret.id)} className="p-1.5 rounded px-hit44" style={{ background: "color-mix(in srgb, var(--px-brand) 8%, transparent)" }} title="Rotar" aria-label="Rotar secreto"><RefreshCw size={13} style={{ color: "var(--px-brand)" }} /></button>
+                        <button onClick={() => handleDeleteSecret(secret.id)} className="p-1.5 rounded px-hit44" style={{ background: "color-mix(in srgb, var(--px-crit) 8%, transparent)" }} title="Eliminar" aria-label="Eliminar secreto"><Trash2 size={13} style={{ color: "var(--px-crit)" }} /></button>
                       </div>
                     </div>
                   );
@@ -509,7 +509,7 @@ export default function IntegracionTab() {
               </div>
 
               {/* Escritorio (md+): tabla completa */}
-              <div className="hidden lg:block overflow-x-auto">
+              <div className="hidden lg:block overflow-x-auto scrollbar-tactical">
               <table className="w-full" style={{ fontFamily: "var(--px-mono)", fontSize: "var(--px-text-sm)", minWidth: "800px" }}>
                 <thead>
                   <tr style={{ background: "color-mix(in srgb, var(--px-brand) 4%, transparent)" }}>
@@ -533,11 +533,11 @@ export default function IntegracionTab() {
                       <td className="px-3 py-2.5"><span style={{ color: dias === null ? "var(--px-text-muted)" : dias <= 0 ? "var(--px-crit)" : dias <= 15 ? "var(--px-warn)" : "var(--px-ok)" }}>{dias === null ? "Sin rotación programada" : dias <= 0 ? "EXPIRADO" : `${dias} días`}</span></td>
                       <td className="px-3 py-2.5"><span className="px-2 py-0.5 rounded" style={{ background: `color-mix(in srgb, ${statusColor(estado)} 10%, transparent)`, color: statusColor(estado), fontSize: "var(--px-text-xs)", fontWeight: 600 }}>{statusLabel(estado)}</span></td>
                       <td className="px-3 py-2.5">
-                        <div className="flex gap-1">
-                          <button onClick={() => toggleSecretVisibility(secret.id)} className="p-1 rounded" style={{ background: "color-mix(in srgb, var(--px-brand) 8%, transparent)" }} title={revelado === undefined ? "Mostrar" : "Ocultar"} aria-label={revelado === undefined ? "Mostrar secreto" : "Ocultar secreto"}>{revelado === undefined ? <Eye size={11} style={{ color: "var(--px-text-muted)" }} /> : <EyeOff size={11} style={{ color: "var(--px-brand)" }} />}</button>
-                          <button onClick={() => copySecret(secret.id)} className="p-1 rounded" style={{ background: "color-mix(in srgb, var(--px-brand) 8%, transparent)" }} title="Copiar" aria-label="Copiar secreto"><Copy size={11} style={{ color: "var(--px-text-muted)" }} /></button>
-                          <button onClick={() => handleRotateSecret(secret.id)} className="p-1 rounded" style={{ background: "color-mix(in srgb, var(--px-brand) 8%, transparent)" }} title="Rotar" aria-label="Rotar secreto"><RefreshCw size={11} style={{ color: "var(--px-brand)" }} /></button>
-                          <button onClick={() => handleDeleteSecret(secret.id)} className="p-1 rounded" style={{ background: "color-mix(in srgb, var(--px-crit) 8%, transparent)" }} title="Eliminar" aria-label="Eliminar secreto"><Trash2 size={11} style={{ color: "var(--px-crit)" }} /></button>
+                        <div className="flex gap-6">
+                          <button onClick={() => toggleSecretVisibility(secret.id)} className="p-1 rounded px-hit44" style={{ background: "color-mix(in srgb, var(--px-brand) 8%, transparent)" }} title={revelado === undefined ? "Mostrar" : "Ocultar"} aria-label={revelado === undefined ? "Mostrar secreto" : "Ocultar secreto"}>{revelado === undefined ? <Eye size={11} style={{ color: "var(--px-text-muted)" }} /> : <EyeOff size={11} style={{ color: "var(--px-brand)" }} />}</button>
+                          <button onClick={() => copySecret(secret.id)} className="p-1 rounded px-hit44" style={{ background: "color-mix(in srgb, var(--px-brand) 8%, transparent)" }} title="Copiar" aria-label="Copiar secreto"><Copy size={11} style={{ color: "var(--px-text-muted)" }} /></button>
+                          <button onClick={() => handleRotateSecret(secret.id)} className="p-1 rounded px-hit44" style={{ background: "color-mix(in srgb, var(--px-brand) 8%, transparent)" }} title="Rotar" aria-label="Rotar secreto"><RefreshCw size={11} style={{ color: "var(--px-brand)" }} /></button>
+                          <button onClick={() => handleDeleteSecret(secret.id)} className="p-1 rounded px-hit44" style={{ background: "color-mix(in srgb, var(--px-crit) 8%, transparent)" }} title="Eliminar" aria-label="Eliminar secreto"><Trash2 size={11} style={{ color: "var(--px-crit)" }} /></button>
                         </div>
                       </td>
                     </tr>
@@ -556,8 +556,8 @@ export default function IntegracionTab() {
             <div className="flex items-center justify-between flex-wrap gap-2">
               <span className="px-section-title">REGISTRO DE AUDITORÍA ({auditLogs.length} entradas)</span>
               <div className="flex gap-2">
-                <button onClick={() => { const csv = ["Timestamp,Usuario,Acción,Integración,Estado,IP", ...auditLogs.map(l => `${l.timestamp},Usuario #${l.userId},${l.action},${nombreIntegracion(l.integrationId)},${l.status},${l.ipAddress ?? ""}`)].join("\n"); const blob = new Blob([csv], { type: "text/csv" }); const url = URL.createObjectURL(blob); const a = document.createElement("a"); a.href = url; a.download = "auditoria_vault.csv"; a.click(); URL.revokeObjectURL(url); toast.success("Auditoría exportada"); }} className="flex items-center gap-1 px-3 py-1.5 rounded" style={{ background: "color-mix(in srgb, var(--px-brand) 10%, transparent)", border: "1px solid color-mix(in srgb, var(--px-brand) 20%, transparent)", color: "var(--px-brand)", fontSize: "var(--px-text-sm)", fontWeight: 600 }}><Download size={12} /> EXPORTAR</button>
-                <button onClick={handleClearAuditLogs} disabled={auditLogs.length === 0} className="flex items-center gap-1 px-3 py-1.5 rounded" style={{ background: "color-mix(in srgb, var(--px-crit) 10%, transparent)", border: "1px solid color-mix(in srgb, var(--px-crit) 20%, transparent)", color: "var(--px-crit)", fontSize: "var(--px-text-sm)", fontWeight: 600, opacity: auditLogs.length === 0 ? 0.5 : 1 }}><Trash2 size={12} /> LIMPIAR</button>
+                <button onClick={() => { const csv = ["Timestamp,Usuario,Acción,Integración,Estado,IP", ...auditLogs.map(l => `${l.timestamp},Usuario #${l.userId},${l.action},${nombreIntegracion(l.integrationId)},${l.status},${l.ipAddress ?? ""}`)].join("\n"); const blob = new Blob([csv], { type: "text/csv" }); const url = URL.createObjectURL(blob); const a = document.createElement("a"); a.href = url; a.download = "auditoria_vault.csv"; a.click(); URL.revokeObjectURL(url); toast.success("Auditoría exportada"); }} className="flex items-center gap-1 px-3 py-1.5 rounded px-hit44" style={{ background: "color-mix(in srgb, var(--px-brand) 10%, transparent)", border: "1px solid color-mix(in srgb, var(--px-brand) 20%, transparent)", color: "var(--px-brand)", fontSize: "var(--px-text-sm)", fontWeight: 600 }}><Download size={12} /> EXPORTAR</button>
+                <button onClick={handleClearAuditLogs} disabled={auditLogs.length === 0} className="flex items-center gap-1 px-3 py-1.5 rounded px-hit44" style={{ background: "color-mix(in srgb, var(--px-crit) 10%, transparent)", border: "1px solid color-mix(in srgb, var(--px-crit) 20%, transparent)", color: "var(--px-crit)", fontSize: "var(--px-text-sm)", fontWeight: 600, opacity: auditLogs.length === 0 ? 0.5 : 1 }}><Trash2 size={12} /> LIMPIAR</button>
               </div>
             </div>
             <TacticalCard className="overflow-hidden">
@@ -584,7 +584,7 @@ export default function IntegracionTab() {
               </div>
 
               {/* Escritorio (md+): tabla completa */}
-              <div className="hidden lg:block overflow-x-auto">
+              <div className="hidden lg:block overflow-x-auto scrollbar-tactical">
               <table className="w-full" style={{ fontFamily: "var(--px-mono)", fontSize: "var(--px-text-sm)", minWidth: "700px" }}>
                 <thead><tr style={{ background: "color-mix(in srgb, var(--px-brand) 4%, transparent)" }}>{["TIMESTAMP", "USUARIO", "ACCIÓN", "INTEGRACIÓN", "ESTADO", "IP"].map(h => (<th key={h} className="px-4 py-2 text-left" style={{ color: "var(--px-text-muted)", fontSize: "var(--px-text-xs)", letterSpacing: "0.08em", fontWeight: 600 }}>{h}</th>))}</tr></thead>
                 <tbody>
@@ -613,7 +613,7 @@ export default function IntegracionTab() {
                 <span className="px-section-title">CONVERTIDOR DE DATOS</span>
                 <div className="flex gap-2">
                   {(["xml2json", "json2xml"] as const).map(dir => (
-                    <button key={dir} onClick={() => setConversionDirection(dir)} className="px-3 py-1 rounded" style={{ background: conversionDirection === dir ? "color-mix(in srgb, var(--px-brand) 15%, transparent)" : "transparent", border: `1px solid ${conversionDirection === dir ? "color-mix(in srgb, var(--px-brand) 40%, transparent)" : "var(--px-hairline)"}`, color: conversionDirection === dir ? "var(--px-brand)" : "var(--px-text-muted)", fontSize: "var(--px-text-sm)", fontWeight: 600 }}>
+                    <button key={dir} onClick={() => setConversionDirection(dir)} className="px-3 py-1 rounded px-hit44" style={{ background: conversionDirection === dir ? "color-mix(in srgb, var(--px-brand) 15%, transparent)" : "transparent", border: `1px solid ${conversionDirection === dir ? "color-mix(in srgb, var(--px-brand) 40%, transparent)" : "var(--px-hairline)"}`, color: conversionDirection === dir ? "var(--px-brand)" : "var(--px-text-muted)", fontSize: "var(--px-text-sm)", fontWeight: 600 }}>
                       {dir === "xml2json" ? "XML → JSON" : "JSON → XML"}
                     </button>
                   ))}
@@ -630,7 +630,7 @@ export default function IntegracionTab() {
                 </div>
               </div>
               <div className="flex justify-center" style={{ marginTop: "var(--px-4)" }}>
-                <button onClick={handleConvert} className="flex items-center gap-2 rounded" style={{ padding: "var(--px-2) var(--px-5)", background: "color-mix(in srgb, var(--px-brand) 15%, transparent)", border: "1px solid color-mix(in srgb, var(--px-brand) 40%, transparent)", color: "var(--px-brand)", fontWeight: 600, fontSize: "var(--px-text-base)" }}><ArrowRightLeft size={14} /> CONVERTIR</button>
+                <button onClick={handleConvert} className="flex items-center gap-2 rounded px-hit44" style={{ padding: "var(--px-2) var(--px-5)", background: "color-mix(in srgb, var(--px-brand) 15%, transparent)", border: "1px solid color-mix(in srgb, var(--px-brand) 40%, transparent)", color: "var(--px-brand)", fontWeight: 600, fontSize: "var(--px-text-base)" }}><ArrowRightLeft size={14} /> CONVERTIR</button>
               </div>
             </TacticalCard>
           </div>
@@ -706,7 +706,7 @@ export default function IntegracionTab() {
                       </div>
                     </div>
                   </div>
-                  <button onClick={() => setShowDetailDialog(false)} aria-label="Cerrar" style={{ color: "var(--px-text-faint)", background: "none", border: "none", cursor: "pointer", padding: 4 }}><X size={16} /></button>
+                  <button onClick={() => setShowDetailDialog(false)} aria-label="Cerrar" className="px-hit44" style={{ color: "var(--px-text-faint)", background: "none", border: "none", cursor: "pointer", padding: 4 }}><X size={16} /></button>
                 </div>
               </div>
 
@@ -750,11 +750,11 @@ export default function IntegracionTab() {
 
                 {/* Acciones */}
                 <div className="flex flex-col sm:flex-row gap-2">
-                  <button onClick={() => { handleSync(selectedIntegration); setShowDetailDialog(false); }} className="px-btn px-btn-primary flex-1" style={{ minHeight: 40 }}><RefreshCw size={14} /> Sincronizar</button>
-                  <button onClick={() => { handleToggleStatus(selectedIntegration.id); setShowDetailDialog(false); }} className="px-btn px-btn-secondary flex-1" style={{ minHeight: 40 }}>
+                  <button onClick={() => { handleSync(selectedIntegration); setShowDetailDialog(false); }} className="px-btn px-btn-primary flex-1 px-hit44" style={{ minHeight: 40 }}><RefreshCw size={14} /> Sincronizar</button>
+                  <button onClick={() => { handleToggleStatus(selectedIntegration.id); setShowDetailDialog(false); }} className="px-btn px-btn-secondary flex-1 px-hit44" style={{ minHeight: 40 }}>
                     {selectedIntegration.status === "active" ? <><XCircle size={14} /> Desactivar</> : <><CheckCircle size={14} /> Activar</>}
                   </button>
-                  <button onClick={() => handleDeleteIntegration(selectedIntegration.id)} className="px-btn px-btn-danger" style={{ minHeight: 40 }}><Trash2 size={14} /></button>
+                  <button onClick={() => handleDeleteIntegration(selectedIntegration.id)} className="px-btn px-btn-danger px-hit44" style={{ minHeight: 40 }}><Trash2 size={14} /></button>
                 </div>
               </div>
             </div>
@@ -768,20 +768,20 @@ export default function IntegracionTab() {
           <div className="w-full max-w-lg max-h-[92vh] overflow-y-auto scrollbar-tactical px-card px-dialog-enter" style={{ padding: "var(--px-4)" }}>
             <div className="flex items-center justify-between mb-4">
               <h3 id="new-integ-title" style={{ fontFamily: "var(--px-display)", fontWeight: 700, fontSize: "var(--px-text-lg)", color: "var(--px-text)" }}>Nueva integración</h3>
-              <button onClick={() => setShowNewDialog(false)} aria-label="Cerrar" style={{ color: "var(--px-text-faint)", background: "none", border: "none", cursor: "pointer" }}><X size={16} /></button>
+              <button onClick={() => setShowNewDialog(false)} aria-label="Cerrar" className="px-hit44" style={{ color: "var(--px-text-faint)", background: "none", border: "none", cursor: "pointer" }}><X size={16} /></button>
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: "var(--px-3)" }}>
-              <div><label className="px-label">Nombre *</label><input value={newInteg.name} onChange={e => setNewInteg(p => ({ ...p, name: e.target.value }))} className="px-input" placeholder="Ej: Sistema de Denuncias" /></div>
-              <div><label className="px-label">Endpoint *</label><input value={newInteg.endpoint} onChange={e => setNewInteg(p => ({ ...p, endpoint: e.target.value }))} className="px-input" placeholder="https://api.ejemplo.gob.mx/v1" /></div>
-              <div><label className="px-label">Descripción</label><input value={newInteg.description} onChange={e => setNewInteg(p => ({ ...p, description: e.target.value }))} className="px-input" placeholder="Descripción de la integración" /></div>
+              <div><label className="px-label">Nombre *</label><input value={newInteg.name} onChange={e => setNewInteg(p => ({ ...p, name: e.target.value }))} className="px-input" style={{ minHeight: 44 }} placeholder="Ej: Sistema de Denuncias" /></div>
+              <div><label className="px-label">Endpoint *</label><input value={newInteg.endpoint} onChange={e => setNewInteg(p => ({ ...p, endpoint: e.target.value }))} className="px-input" style={{ minHeight: 44 }} placeholder="https://api.ejemplo.gob.mx/v1" /></div>
+              <div><label className="px-label">Descripción</label><input value={newInteg.description} onChange={e => setNewInteg(p => ({ ...p, description: e.target.value }))} className="px-input" style={{ minHeight: 44 }} placeholder="Descripción de la integración" /></div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div><label className="px-label">Tipo</label><select value={newInteg.type} onChange={e => setNewInteg(p => ({ ...p, type: e.target.value as Integration["type"] }))} className="px-input"><option value="REST">REST API</option><option value="SOAP">SOAP</option><option value="XML-RPC">XML-RPC</option><option value="WEBHOOK">Webhook</option><option value="SFTP">SFTP</option></select></div>
-                <div><label className="px-label">Autenticación</label><select value={newInteg.authMethod} onChange={e => setNewInteg(p => ({ ...p, authMethod: e.target.value }))} className="px-input"><option value="NONE">Sin Auth</option><option value="BASIC">Basic</option><option value="API_KEY">API Key</option><option value="OAUTH2">OAuth 2.0</option><option value="CERTIFICATE">Certificado</option></select></div>
+                <div><label className="px-label">Tipo</label><select value={newInteg.type} onChange={e => setNewInteg(p => ({ ...p, type: e.target.value as Integration["type"] }))} className="px-input" style={{ minHeight: 44 }}><option value="REST">REST API</option><option value="SOAP">SOAP</option><option value="XML-RPC">XML-RPC</option><option value="WEBHOOK">Webhook</option><option value="SFTP">SFTP</option></select></div>
+                <div><label className="px-label">Autenticación</label><select value={newInteg.authMethod} onChange={e => setNewInteg(p => ({ ...p, authMethod: e.target.value }))} className="px-input" style={{ minHeight: 44 }}><option value="NONE">Sin Auth</option><option value="BASIC">Basic</option><option value="API_KEY">API Key</option><option value="OAUTH2">OAuth 2.0</option><option value="CERTIFICATE">Certificado</option></select></div>
               </div>
             </div>
             <div className="flex gap-2 mt-4">
-              <button onClick={() => setShowNewDialog(false)} className="px-btn px-btn-secondary flex-1">Cancelar</button>
-              <button onClick={handleCreateIntegration} className="px-btn px-btn-primary flex-1"><Save size={14} /> Registrar</button>
+              <button onClick={() => setShowNewDialog(false)} className="px-btn px-btn-secondary flex-1 px-hit44">Cancelar</button>
+              <button onClick={handleCreateIntegration} className="px-btn px-btn-primary flex-1 px-hit44"><Save size={14} /> Registrar</button>
             </div>
           </div>
         </div>
@@ -793,20 +793,20 @@ export default function IntegracionTab() {
           <div className="w-full max-w-lg max-h-[92vh] overflow-y-auto scrollbar-tactical px-card px-dialog-enter" style={{ padding: "var(--px-4)" }}>
             <div className="flex items-center justify-between mb-4">
               <h3 id="new-secret-title" style={{ fontFamily: "var(--px-display)", fontWeight: 700, fontSize: "var(--px-text-lg)", color: "var(--px-text)" }}>Agregar secreto</h3>
-              <button onClick={() => setShowNewSecretDialog(false)} aria-label="Cerrar" style={{ color: "var(--px-text-faint)", background: "none", border: "none", cursor: "pointer" }}><X size={16} /></button>
+              <button onClick={() => setShowNewSecretDialog(false)} aria-label="Cerrar" className="px-hit44" style={{ color: "var(--px-text-faint)", background: "none", border: "none", cursor: "pointer" }}><X size={16} /></button>
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: "var(--px-3)" }}>
-              <div><label className="px-label">Nombre del secreto *</label><input value={newSecret.name} onChange={e => setNewSecret(p => ({ ...p, name: e.target.value }))} className="px-input" placeholder="Ej: SESNSP_API_KEY_V2" /></div>
+              <div><label className="px-label">Nombre del secreto *</label><input value={newSecret.name} onChange={e => setNewSecret(p => ({ ...p, name: e.target.value }))} className="px-input" style={{ minHeight: 44 }} placeholder="Ej: SESNSP_API_KEY_V2" /></div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div><label className="px-label">Tipo</label><select value={newSecret.type} onChange={e => setNewSecret(p => ({ ...p, type: e.target.value }))} className="px-input"><option value="API_KEY">API Key</option><option value="OAUTH_TOKEN">OAuth Token</option><option value="BASIC_AUTH">Basic Auth</option><option value="CERTIFICATE">Certificado</option><option value="SSH_KEY">SSH Key</option></select></div>
-                <div><label className="px-label">Integración</label><select value={newSecret.integration} onChange={e => setNewSecret(p => ({ ...p, integration: e.target.value }))} className="px-input"><option value="">General</option>{integrations.map(i => <option key={i.id} value={i.id}>{i.name}</option>)}</select></div>
+                <div><label className="px-label">Tipo</label><select value={newSecret.type} onChange={e => setNewSecret(p => ({ ...p, type: e.target.value }))} className="px-input" style={{ minHeight: 44 }}><option value="API_KEY">API Key</option><option value="OAUTH_TOKEN">OAuth Token</option><option value="BASIC_AUTH">Basic Auth</option><option value="CERTIFICATE">Certificado</option><option value="SSH_KEY">SSH Key</option></select></div>
+                <div><label className="px-label">Integración</label><select value={newSecret.integration} onChange={e => setNewSecret(p => ({ ...p, integration: e.target.value }))} className="px-input" style={{ minHeight: 44 }}><option value="">General</option>{integrations.map(i => <option key={i.id} value={i.id}>{i.name}</option>)}</select></div>
               </div>
-              <div><label className="px-label">Valor del secreto *</label><input type="password" value={newSecret.value} onChange={e => setNewSecret(p => ({ ...p, value: e.target.value }))} className="px-input" placeholder="Ingrese el valor" /></div>
-              <div><label className="px-label">Rotar cada (días)</label><input type="number" value={newSecret.expiresInDays} onChange={e => setNewSecret(p => ({ ...p, expiresInDays: e.target.value }))} className="px-input" placeholder="90" /></div>
+              <div><label className="px-label">Valor del secreto *</label><input type="password" value={newSecret.value} onChange={e => setNewSecret(p => ({ ...p, value: e.target.value }))} className="px-input" style={{ minHeight: 44 }} placeholder="Ingrese el valor" /></div>
+              <div><label className="px-label">Rotar cada (días)</label><input type="number" value={newSecret.expiresInDays} onChange={e => setNewSecret(p => ({ ...p, expiresInDays: e.target.value }))} className="px-input" style={{ minHeight: 44 }} placeholder="90" /></div>
             </div>
             <div className="flex gap-2 mt-4">
-              <button onClick={() => setShowNewSecretDialog(false)} className="px-btn px-btn-secondary flex-1">Cancelar</button>
-              <button onClick={handleCreateSecret} className="px-btn px-btn-primary flex-1"><Lock size={14} /> Almacenar</button>
+              <button onClick={() => setShowNewSecretDialog(false)} className="px-btn px-btn-secondary flex-1 px-hit44">Cancelar</button>
+              <button onClick={handleCreateSecret} className="px-btn px-btn-primary flex-1 px-hit44"><Lock size={14} /> Almacenar</button>
             </div>
           </div>
         </div>

@@ -73,7 +73,7 @@ export default function ZonasTab() {
           { id: "ranking" as const, label: "Ranking" },
           { id: "perfil" as const, label: `${selectedMunicipio.nombre.split(" ")[0]}` },
         ].map(t => (
-          <button key={t.id} onClick={() => setSideTab(t.id)} className="flex-1" style={{
+          <button key={t.id} onClick={() => setSideTab(t.id)} className="flex-1 px-hit44" style={{
             fontFamily: "var(--px-mono)", fontSize: "var(--px-text-xs)", padding: "var(--px-2) var(--px-3)",
             color: sideTab === t.id ? "var(--px-brand)" : "var(--px-text-faint)",
             borderBottom: sideTab === t.id ? "2px solid var(--px-brand)" : "2px solid transparent",
@@ -201,7 +201,7 @@ export default function ZonasTab() {
               { label: "Calor", on: showHeatmap, toggle: () => setShowHeatmap(v => !v) },
               { label: "Círculos", on: showCircles, toggle: () => setShowCircles(v => !v) },
             ].map(l => (
-              <button key={l.label} onClick={l.toggle} style={{
+              <button key={l.label} onClick={l.toggle} className="px-hit44" style={{
                 fontFamily: "var(--px-mono)", fontSize: "var(--px-text-xs)", padding: "3px 8px",
                 borderRadius: 4, border: "none", cursor: "pointer",
                 background: l.on ? "color-mix(in srgb, var(--px-brand) 15%, transparent)" : "transparent",
@@ -257,7 +257,7 @@ export default function ZonasTab() {
             <span style={{ width: 8, height: 8, borderRadius: 999, background: nivelColor(selectedMunicipio.nivel), flexShrink: 0 }} />
             <span className="truncate" style={{ fontFamily: "var(--px-body)", fontSize: "var(--px-text-sm)", fontWeight: 600, color: "var(--px-text)", flex: 1 }}>{selectedMunicipio.nombre}</span>
             <span style={{ fontFamily: "var(--px-mono)", fontSize: "var(--px-text-xs)", color: nivelColor(selectedMunicipio.nivel) }}>{selectedMunicipio.delitos.toLocaleString()}</span>
-            <button onClick={() => setShowPanel(true)} className="px-btn px-btn-primary" style={{ padding: "4px 10px", fontSize: "var(--px-text-xs)", minHeight: 32 }}>
+            <button onClick={() => setShowPanel(true)} className="px-btn px-btn-primary px-hit44" style={{ padding: "4px 10px", fontSize: "var(--px-text-xs)", minHeight: 32 }}>
               <BarChart2 size={12} /> Ranking
             </button>
           </div>
@@ -271,7 +271,7 @@ export default function ZonasTab() {
                 <BarChart2 size={12} style={{ color: "var(--px-brand)" }} />
                 <span className="px-eyebrow">RANKING</span>
               </div>
-              <button onClick={() => setShowPanel(false)} style={{ fontFamily: "var(--px-mono)", fontSize: "var(--px-text-xs)", color: "var(--px-text-faint)", background: "none", border: "none", cursor: "pointer" }}>Cerrar</button>
+              <button onClick={() => setShowPanel(false)} className="px-hit44" style={{ fontFamily: "var(--px-mono)", fontSize: "var(--px-text-xs)", color: "var(--px-text-faint)", background: "none", border: "none", cursor: "pointer" }}>Cerrar</button>
             </div>
             <div className="flex-1 overflow-y-auto scrollbar-tactical">
               {sidebarContent}

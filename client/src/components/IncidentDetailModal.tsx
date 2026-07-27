@@ -90,7 +90,7 @@ export default function IncidentDetailModal({ incident, isOpen, onClose }: Props
               fontFamily: "var(--px-mono)", fontSize: "var(--px-text-xs)", padding: "var(--px-3) var(--px-4)", minHeight: 44,
               color: tab === t.id ? "var(--px-brand)" : "var(--px-text-faint)",
               borderBottom: tab === t.id ? "2px solid var(--px-brand)" : "2px solid transparent",
-              background: "none", border: "none", borderBottomStyle: "solid", cursor: "pointer",
+              background: "none", borderTop: "none", borderLeft: "none", borderRight: "none", cursor: "pointer",
             }}>
               {t.icon} {t.label}
             </button>
